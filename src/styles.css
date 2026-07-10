@@ -208,6 +208,12 @@ button:hover {
   color: #a32020;
 }
 
+.warning {
+  margin: 10px 0 0;
+  color: #8a5a00;
+  font-size: 13px;
+}
+
 @media (max-width: 720px) {
   .hud {
     top: 8px;

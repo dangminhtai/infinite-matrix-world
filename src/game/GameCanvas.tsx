@@ -107,6 +107,10 @@ function Scene({
   usePointerControls(rotate, zoom, clickMove);
 
   useEffect(() => {
+    const resetInput = () => {
+      moveRef.current = { x: 0, y: 0 };
+      target.current = null;
+    };
     const down = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "w") moveRef.current.y = -1;
       if (e.key.toLowerCase() === "s") moveRef.current.y = 1;
@@ -117,11 +121,18 @@ function Scene({
       if (["w", "s"].includes(e.key.toLowerCase())) moveRef.current.y = 0;
       if (["a", "d"].includes(e.key.toLowerCase())) moveRef.current.x = 0;
     };
+    const visibility = () => {
+      if (document.hidden) resetInput();
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", resetInput);
+    document.addEventListener("visibilitychange", visibility);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", resetInput);
+      document.removeEventListener("visibilitychange", visibility);
     };
   }, [moveRef]);
 
@@ -137,6 +148,7 @@ function Scene({
     const input = normalizeInput(moveRef.current);
     let dx = input.x;
     let dz = input.y;
+    if (dx !== 0 || dz !== 0) target.current = null;
     if (target.current && dx === 0 && dz === 0) {
       const tx = Number(target.current.x - state.tileX) - state.localX;
       const tz = Number(target.current.y - state.tileY) - state.localZ;

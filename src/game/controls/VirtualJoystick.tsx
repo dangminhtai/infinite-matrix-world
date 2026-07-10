@@ -29,14 +29,22 @@ export function VirtualJoystick({ onChange }: { onChange: (input: MoveInput) => 
       ref={base}
       className="joystick"
       onPointerDown={(e) => {
+        e.stopPropagation();
         e.currentTarget.setPointerCapture(e.pointerId);
         update(e.clientX, e.clientY);
       }}
       onPointerMove={(e) => {
+        e.stopPropagation();
         if (e.buttons) update(e.clientX, e.clientY);
       }}
-      onPointerUp={release}
-      onPointerCancel={release}
+      onPointerUp={(e) => {
+        e.stopPropagation();
+        release();
+      }}
+      onPointerCancel={(e) => {
+        e.stopPropagation();
+        release();
+      }}
     >
       <div className="joystickKnob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
     </div>

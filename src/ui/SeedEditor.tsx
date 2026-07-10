@@ -1,9 +1,17 @@
 import { useState } from "react";
+import { DEFAULT_SEED } from "../game/constants";
 
 export function SeedEditor({ seed, onApply, onClose }: { seed: string[][]; onApply: (seed: string[][]) => void; onClose: () => void }) {
   const [size, setSize] = useState(seed.length);
   const [values, setValues] = useState(seed);
   const [error, setError] = useState("");
+
+  function resetDefault(): void {
+    const next = DEFAULT_SEED.map((row) => row.map((value) => value.toString()));
+    setSize(next.length);
+    setValues(next);
+    setError("");
+  }
 
   function resize(n: number): void {
     setSize(n);
@@ -40,8 +48,14 @@ export function SeedEditor({ seed, onApply, onClose }: { seed: string[][]; onApp
             />
           )))}
         </div>
+        {size > 2 && (
+          <p className="warning">
+            Seed {size}x{size} nặng hơn rõ vì worker phải chạy nhiều phép BigInt matrix/recurrence hơn cho mỗi điểm terrain.
+          </p>
+        )}
         {error && <p className="error">{error}</p>}
         <div className="modalActions">
+          <button onClick={resetDefault}>Reset mặc định 2x2</button>
           <button onClick={onClose}>Đóng</button>
           <button onClick={apply}>Áp dụng</button>
         </div>

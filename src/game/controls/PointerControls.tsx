@@ -1,10 +1,14 @@
 import { useEffect } from "react";
 
+const INTERACTIVE_SELECTOR = "button,input,select,textarea,.modal,.hud,.sidePanel,.minimap,.joystick,.joystickKnob";
+
 export function usePointerControls(onRotate: (dx: number, dy: number) => void, onZoom: (amount: number) => void, onClickMove: (x: number, y: number) => void) {
   useEffect(() => {
     let draggingRight = false;
     let lastX = 0;
     let lastY = 0;
+    let downX = 0;
+    let downY = 0;
     let lastPinch = 0;
     const pointers = new Map<number, { x: number; y: number }>();
     const pinchDistance = () => {
@@ -13,9 +17,11 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
       return Math.hypot(values[0].x - values[1].x, values[0].y - values[1].y);
     };
     const down = (e: PointerEvent) => {
-      if (e.target instanceof HTMLElement && e.target.closest("button,input,select,textarea,.modal,.hud,.sidePanel,.minimap")) return;
+      if (e.target instanceof HTMLElement && e.target.closest(INTERACTIVE_SELECTOR)) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       lastPinch = pinchDistance();
+      downX = e.clientX;
+      downY = e.clientY;
       lastX = e.clientX;
       lastY = e.clientY;
       draggingRight = e.button === 2 || e.clientX > window.innerWidth / 2;
@@ -36,23 +42,36 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
     const up = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
       lastPinch = pinchDistance();
-      if (e.target instanceof HTMLElement && e.target.closest("button,input,select,textarea,.modal,.hud,.sidePanel,.minimap")) return;
-      if (!draggingRight && e.button === 0) onClickMove(e.clientX, e.clientY);
+      if (e.target instanceof HTMLElement && e.target.closest(INTERACTIVE_SELECTOR)) {
+        draggingRight = false;
+        return;
+      }
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+      if (!draggingRight && e.button === 0 && moved < 8) onClickMove(e.clientX, e.clientY);
       draggingRight = false;
     };
     const wheel = (e: WheelEvent) => onZoom(e.deltaY);
     const context = (e: MouseEvent) => e.preventDefault();
+    const reset = () => {
+      draggingRight = false;
+      lastPinch = 0;
+      pointers.clear();
+    };
     window.addEventListener("pointerdown", down);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("wheel", wheel, { passive: true });
     window.addEventListener("contextmenu", context);
+    window.addEventListener("blur", reset);
+    document.addEventListener("visibilitychange", reset);
     return () => {
       window.removeEventListener("pointerdown", down);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("wheel", wheel);
       window.removeEventListener("contextmenu", context);
+      window.removeEventListener("blur", reset);
+      document.removeEventListener("visibilitychange", reset);
     };
   }, [onClickMove, onRotate, onZoom]);
 }
