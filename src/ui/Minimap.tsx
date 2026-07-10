@@ -13,13 +13,17 @@ const biomeColors: Record<BiomeId, string> = {
 
 export function Minimap({
   chunks,
-  worldX,
-  worldY,
+  worldTileX,
+  worldTileY,
+  offsetX,
+  offsetY,
   cameraYaw,
 }: {
   chunks: ChunkPayload[];
-  worldX: string;
-  worldY: string;
+  worldTileX: string;
+  worldTileY: string;
+  offsetX: number;
+  offsetY: number;
   cameraYaw: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,8 +47,8 @@ export function Minimap({
     ctx.arc(cssSize / 2, cssSize / 2, cssSize / 2 - 7, 0, Math.PI * 2);
     ctx.clip();
 
-    const px = BigInt(worldX || "0");
-    const py = BigInt(worldY || "0");
+    const px = BigInt(worldTileX || "0");
+    const py = BigInt(worldTileY || "0");
     const scale = 3.2;
     for (const chunk of chunks) {
       const cx = BigInt(chunk.cx);
@@ -55,8 +59,8 @@ export function Minimap({
         for (let x = 0; x < CHUNK_SIZE; x += 1) {
           const wx = chunkBaseX + BigInt(x);
           const wy = chunkBaseY + BigInt(y);
-          const sx = cssSize / 2 + Number(wx - px) * scale;
-          const sy = cssSize / 2 + Number(wy - py) * scale;
+          const sx = cssSize / 2 + (Number(wx - px) - offsetX) * scale;
+          const sy = cssSize / 2 + (Number(wy - py) - offsetY) * scale;
           if (sx < -4 || sy < -4 || sx > cssSize + 4 || sy > cssSize + 4) continue;
           ctx.fillStyle = biomeColors[(chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId];
           ctx.fillRect(sx, sy, scale + 0.5, scale + 0.5);
@@ -65,8 +69,8 @@ export function Minimap({
       ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
       ctx.lineWidth = 1;
       ctx.strokeRect(
-        cssSize / 2 + Number(chunkBaseX - px) * scale,
-        cssSize / 2 + Number(chunkBaseY - py) * scale,
+        cssSize / 2 + (Number(chunkBaseX - px) - offsetX) * scale,
+        cssSize / 2 + (Number(chunkBaseY - py) - offsetY) * scale,
         CHUNK_SIZE * scale,
         CHUNK_SIZE * scale,
       );
@@ -91,7 +95,7 @@ export function Minimap({
     ctx.beginPath();
     ctx.arc(cssSize / 2, cssSize / 2, cssSize / 2 - 5, 0, Math.PI * 2);
     ctx.stroke();
-  }, [cameraYaw, chunks, worldX, worldY]);
+  }, [cameraYaw, chunks, offsetX, offsetY, worldTileX, worldTileY]);
 
   return <canvas ref={canvasRef} className="minimap" aria-label="Minimap" />;
 }

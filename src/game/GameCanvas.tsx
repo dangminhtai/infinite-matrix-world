@@ -198,7 +198,7 @@ function Scene({
     <>
       <WorldRenderer chunks={chunks} originCx={originCx} originCy={originCy} debug={debug} />
       <GrassRing chunks={chunks} originCx={originCx} originCy={originCy} player={game} />
-      <Player position={[game.current.localX, game.current.height, game.current.localZ]} yaw={game.current.yaw} />
+      <Player state={game} />
       <ThirdPersonCamera target={playerTarget} yaw={cameraAngles.current.yaw} pitch={cameraAngles.current.pitch} zoom={cameraAngles.current.zoom} minY={game.current.height + 1.8} />
     </>
   );

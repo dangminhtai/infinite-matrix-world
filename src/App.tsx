@@ -13,6 +13,18 @@ import { collectPerformanceStats, PerformancePanel } from "./ui/PerformancePanel
 import { emptyExploration, ExplorationPanel, type ExplorationStats } from "./ui/ExplorationPanel";
 import { BIOME_NAMES } from "./game/types";
 
+function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
+  const wholeOffset = Math.floor(localOffset);
+  const fraction = localOffset - wholeOffset;
+  const integerPart = baseTile + BigInt(wholeOffset);
+  if (fraction < 0.0005) return integerPart.toString();
+  if (integerPart < 0n) {
+    const magnitude = -integerPart - 1n;
+    return `-${magnitude.toString()}.${Math.floor((1 - fraction) * 100).toString().padStart(2, "0")}`;
+  }
+  return `${integerPart.toString()}.${Math.floor(fraction * 100).toString().padStart(2, "0")}`;
+}
+
 function defaultSeedStrings(): string[][] {
   const saved = localStorage.getItem("ihmw.seed");
   if (saved) {
@@ -39,7 +51,19 @@ export default function App() {
   const [showSeed, setShowSeed] = useState(false);
   const [showTeleport, setShowTeleport] = useState(false);
   const [pending, setPending] = useState(0);
-  const [stats, setStats] = useState({ worldX: "0", worldY: "0", chunkX: "0", chunkY: "0", cameraYaw: 0, cameraZoom: 23, fps: 0 });
+  const [stats, setStats] = useState({
+    worldX: "0",
+    worldY: "0",
+    worldTileX: "0",
+    worldTileY: "0",
+    offsetX: 0,
+    offsetY: 0,
+    chunkX: "0",
+    chunkY: "0",
+    cameraYaw: 0,
+    cameraZoom: 23,
+    fps: 0,
+  });
   const [showPerformance, setShowPerformance] = useState(false);
   const [showExploration, setShowExploration] = useState(false);
   const [resetCameraToken, setResetCameraToken] = useState(0);
@@ -54,7 +78,7 @@ export default function App() {
   });
   const [teleport, setTeleport] = useState<{ x: bigint; y: bigint; token: number } | null>(null);
   const lastChunk = useRef("0,0");
-  const lastTile = useRef<{ x: bigint; y: bigint } | null>(null);
+  const lastTile = useRef<{ x: bigint; y: bigint; offsetX: number; offsetY: number } | null>(null);
   const lastStatsAt = useRef(0);
   const seenDecorKeys = useRef(new Set<string>());
 
@@ -133,16 +157,30 @@ export default function App() {
   }, [seedKey]);
 
   const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number }) => {
-    const worldX = state.tileX + BigInt(Math.floor(state.localX));
-    const worldY = state.tileY + BigInt(Math.floor(state.localZ));
-    const chunkX = worldX >= 0n ? worldX / 16n : (worldX - 15n) / 16n;
-    const chunkY = worldY >= 0n ? worldY / 16n : (worldY - 15n) / 16n;
+    const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
+    const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
+    const offsetX = state.localX - Math.floor(state.localX);
+    const offsetY = state.localZ - Math.floor(state.localZ);
+    const chunkX = worldTileX >= 0n ? worldTileX / 16n : (worldTileX - 15n) / 16n;
+    const chunkY = worldTileY >= 0n ? worldTileY / 16n : (worldTileY - 15n) / 16n;
     const now = performance.now();
     const previous = lastTile.current;
-    lastTile.current = { x: worldX, y: worldY };
-    if (now - lastStatsAt.current < 250) return;
+    lastTile.current = { x: worldTileX, y: worldTileY, offsetX, offsetY };
+    if (now - lastStatsAt.current < 100) return;
     lastStatsAt.current = now;
-    setStats({ worldX: worldX.toString(), worldY: worldY.toString(), chunkX: chunkX.toString(), chunkY: chunkY.toString(), cameraYaw: state.cameraYaw, cameraZoom: state.cameraZoom, fps: state.fps });
+    setStats({
+      worldX: formatWorldCoordinate(state.tileX, state.localX),
+      worldY: formatWorldCoordinate(state.tileY, state.localZ),
+      worldTileX: worldTileX.toString(),
+      worldTileY: worldTileY.toString(),
+      offsetX,
+      offsetY,
+      chunkX: chunkX.toString(),
+      chunkY: chunkY.toString(),
+      cameraYaw: state.cameraYaw,
+      cameraZoom: state.cameraZoom,
+      fps: state.fps,
+    });
     setExploration((current) => {
       const visitedChunks = new Set(current.visitedChunks);
       visitedChunks.add(`${chunkX},${chunkY}`);
@@ -157,8 +195,8 @@ export default function App() {
         for (const rock of chunk.rocks) if (!seenDecorKeys.current.has(rock.id)) { seenDecorKeys.current.add(rock.id); seenRocks += 1; }
         for (const flower of chunk.flowers) if (!seenDecorKeys.current.has(flower.id)) { seenDecorKeys.current.add(flower.id); seenFlowers += 1; }
       }
-      const distanceAdd = previous ? Math.hypot(Number(worldX - previous.x), Number(worldY - previous.y)) : 0;
-      const farthest = Math.hypot(Number(worldX), Number(worldY));
+      const distanceAdd = previous ? Math.hypot(Number(worldTileX - previous.x) + offsetX - previous.offsetX, Number(worldTileY - previous.y) + offsetY - previous.offsetY) : 0;
+      const farthest = Math.hypot(Number(worldTileX), Number(worldTileY));
       const next: ExplorationStats = {
         ...current,
         seedKey,
@@ -166,8 +204,8 @@ export default function App() {
         visitedBiomes: [...biomes],
         distanceTiles: current.distanceTiles + distanceAdd,
         farthestDistance: Math.max(current.farthestDistance, farthest),
-        maxAbsX: (BigInt(current.maxAbsX) > (worldX < 0n ? -worldX : worldX) ? BigInt(current.maxAbsX) : (worldX < 0n ? -worldX : worldX)).toString(),
-        maxAbsY: (BigInt(current.maxAbsY) > (worldY < 0n ? -worldY : worldY) ? BigInt(current.maxAbsY) : (worldY < 0n ? -worldY : worldY)).toString(),
+        maxAbsX: (BigInt(current.maxAbsX) > (worldTileX < 0n ? -worldTileX : worldTileX) ? BigInt(current.maxAbsX) : (worldTileX < 0n ? -worldTileX : worldTileX)).toString(),
+        maxAbsY: (BigInt(current.maxAbsY) > (worldTileY < 0n ? -worldTileY : worldTileY) ? BigInt(current.maxAbsY) : (worldTileY < 0n ? -worldTileY : worldTileY)).toString(),
         seenTrees,
         seenRocks,
         seenFlowers,
@@ -199,7 +237,7 @@ export default function App() {
         onPerformance={() => setShowPerformance((v) => !v)}
         onExploration={() => setShowExploration((v) => !v)}
       />
-      <Minimap chunks={chunks} worldX={stats.worldX} worldY={stats.worldY} cameraYaw={stats.cameraYaw} />
+      <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} cameraYaw={stats.cameraYaw} />
       {showPerformance && <PerformancePanel stats={performanceStats} />}
       {showExploration && <ExplorationPanel stats={exploration} onReset={resetExploration} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
