@@ -1,0 +1,77 @@
+import { CHUNK_SIZE, DEFAULT_SEED, MAX_CHUNK_STATES, P } from "../constants";
+import { applyTransform, invertTransform } from "./recurrence";
+import { HybridMatrixWorld, floorDiv } from "./hybridWorld";
+import { matMul, matPow } from "./matrix";
+import { generateChunk } from "./chunkGenerator";
+
+function assert(condition: unknown, message: string): void {
+  if (!condition) throw new Error(`selfTest failed: ${message}`);
+}
+
+function sameMatrix(a: bigint[][], b: bigint[][]): boolean {
+  return a.length === b.length && a.every((row, i) => row.length === b[i].length && row.every((value, j) => value === b[i][j]));
+}
+
+export function selfTest(): string[] {
+  const passed: string[] = [];
+  const vOld = [1n, 2n];
+  const vNow = [3n, 4n];
+  const vNext = applyTransform(vNow, vOld);
+  assert(vNext[0] === P - 2n && vNext[1] === 14n, "recurrence forward");
+  assert(invertTransform(vNow, vNext).every((v, i) => v === vOld[i]), "recurrence inverse");
+  passed.push("Recurrence");
+
+  const world = new HybridMatrixWorld(DEFAULT_SEED);
+  assert(sameMatrix(matMul(matMul(world.a, world.seed), world.b), matMul(world.a, matMul(world.seed, world.b))), "path independence");
+  passed.push("Path independence");
+
+  const directEast = matMul(matPow(world.a, 1n), world.seed);
+  const directWest = matMul(matPow(world.a, -1n), world.seed);
+  const directSouth = matMul(world.seed, matPow(world.b, 1n));
+  const directNorth = matMul(world.seed, matPow(world.b, -1n));
+  assert(sameMatrix(world.chunkState(1n, 0n), directEast), "east neighbor");
+  assert(sameMatrix(world.chunkState(-1n, 0n), directWest), "west neighbor");
+  assert(sameMatrix(world.chunkState(0n, 1n), directSouth), "south neighbor");
+  assert(sameMatrix(world.chunkState(0n, -1n), directNorth), "north neighbor");
+  passed.push("Neighbor movement");
+
+  const points = [
+    [0n, 0n],
+    [-17n, 31n],
+    [10n ** 80n + 123n, -(10n ** 75n) + 7n],
+  ] as const;
+  const before = points.map(([cx, cy]) => generateChunk(world, cx, cy).hash);
+  world.clearCaches();
+  const after = points.map(([cx, cy]) => generateChunk(world, cx, cy).hash);
+  assert(before.every((hash, i) => hash === after[i]), "regeneration");
+  passed.push("Regeneration");
+
+  const chunkA = generateChunk(world, 0n, 0n);
+  const chunkB = generateChunk(world, 1n, 0n);
+  for (let z = 0; z <= CHUNK_SIZE; z += 1) {
+    const rightA = chunkA.heights[z * (CHUNK_SIZE + 1) + CHUNK_SIZE];
+    const leftB = chunkB.heights[z * (CHUNK_SIZE + 1)];
+    assert(Math.abs(rightA - leftB) < 1e-9, "chunk seam");
+  }
+  passed.push("Chunk seam");
+
+  for (let i = 0; i < MAX_CHUNK_STATES + 20; i += 1) world.chunkState(BigInt(i * 1000), BigInt(-i * 977));
+  assert(world.chunkCache.size <= MAX_CHUNK_STATES, "cache bound");
+  passed.push("Cache bound");
+
+  let origin = 0n;
+  let local = 0;
+  for (let i = 0; i < 30; i += 1) {
+    local += 9.25;
+    if (Math.abs(local) > 64) {
+      const shift = BigInt(Math.trunc(local));
+      origin += shift;
+      local -= Number(shift);
+    }
+  }
+  assert(origin + BigInt(Math.trunc(local)) === 277n, "floating origin accounting");
+  assert(floorDiv(-1n, BigInt(CHUNK_SIZE)) === -1n, "negative floor div");
+  passed.push("Floating origin");
+
+  return passed;
+}
