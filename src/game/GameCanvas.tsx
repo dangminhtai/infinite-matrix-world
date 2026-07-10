@@ -26,6 +26,9 @@ type GameState = {
   localZ: number;
   height: number;
   yaw: number;
+  cameraYaw: number;
+  cameraZoom: number;
+  fps: number;
 };
 
 function Scene({
@@ -44,9 +47,10 @@ function Scene({
   teleport: { x: bigint; y: bigint; token: number } | null;
 }) {
   const chunkMap = useMemo(() => new Map(chunks.map((chunk) => [`${chunk.cx},${chunk.cy}`, chunk])), [chunks]);
-  const game = useRef<GameState>({ tileX: 0n, tileY: 0n, localX: 8, localZ: 8, height: 0, yaw: 0 });
+  const game = useRef<GameState>({ tileX: 0n, tileY: 0n, localX: 8, localZ: 8, height: 0, yaw: 0, cameraYaw: Math.PI * 0.75, cameraZoom: 23, fps: 0 });
   const target = useRef<{ x: bigint; y: bigint } | null>(null);
   const cameraAngles = useRef({ yaw: Math.PI * 0.75, pitch: 0.72, zoom: 23 });
+  const fpsRef = useRef({ frames: 0, elapsed: 0, fps: 0 });
   const [, forceRender] = useState(0);
   const { camera, raycaster, scene } = useThree();
   const playerTarget = useMemo(() => new THREE.Vector3(), []);
@@ -112,6 +116,13 @@ function Scene({
   }, [moveRef]);
 
   useFrame((_, delta) => {
+    fpsRef.current.frames += 1;
+    fpsRef.current.elapsed += delta;
+    if (fpsRef.current.elapsed >= 0.5) {
+      fpsRef.current.fps = Math.round(fpsRef.current.frames / fpsRef.current.elapsed);
+      fpsRef.current.frames = 0;
+      fpsRef.current.elapsed = 0;
+    }
     const state = game.current;
     const input = normalizeInput(moveRef.current);
     let dx = input.x;
@@ -163,7 +174,12 @@ function Scene({
     const cy = floorDiv(state.tileY, BigInt(CHUNK_SIZE));
     onChunkChange(cx, cy);
     playerTarget.set(state.localX, state.height, state.localZ);
-    onStats({ ...state });
+    onStats({
+      ...state,
+      cameraYaw: cameraAngles.current.yaw,
+      cameraZoom: cameraAngles.current.zoom,
+      fps: fpsRef.current.fps,
+    });
   });
 
   const originCx = floorDiv(game.current.tileX, BigInt(CHUNK_SIZE));

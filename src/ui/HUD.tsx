@@ -15,6 +15,8 @@ export function HUD({
   onTeleport,
   onClear,
   onDebug,
+  onPerformance,
+  onExploration,
 }: {
   worldX: string;
   worldY: string;
@@ -30,6 +32,8 @@ export function HUD({
   onTeleport: () => void;
   onClear: () => void;
   onDebug: () => void;
+  onPerformance: () => void;
+  onExploration: () => void;
 }) {
   const current = chunks[0];
   return (
@@ -49,6 +53,8 @@ export function HUD({
         <button onClick={onTeleport}>Teleport</button>
         <button onClick={onClear}>Clear cache</button>
         <button onClick={onDebug}>{debug ? "Hide debug" : "Debug"}</button>
+        <button onClick={onPerformance}>Performance</button>
+        <button onClick={onExploration}>Journey</button>
       </div>
     </div>
   );
