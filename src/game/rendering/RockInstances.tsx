@@ -21,7 +21,7 @@ export function RockInstances({ chunks, originCx, originCy }: { chunks: ChunkPay
     if (ref.current) ref.current.instanceMatrix.needsUpdate = true;
   }, [dummy, instances]);
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, instances.length]} castShadow receiveShadow>
+    <instancedMesh ref={ref} args={[undefined, undefined, instances.length]} receiveShadow>
       <dodecahedronGeometry args={[0.55, 0]} />
       <meshStandardMaterial color="#777b80" roughness={0.95} />
     </instancedMesh>

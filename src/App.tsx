@@ -80,6 +80,7 @@ export default function App() {
   const lastChunk = useRef("0,0");
   const lastTile = useRef<{ x: bigint; y: bigint; offsetX: number; offsetY: number } | null>(null);
   const lastStatsAt = useRef(0);
+  const lastExplorationAt = useRef(0);
   const seenDecorKeys = useRef(new Set<string>());
 
   const performanceStats = useMemo(() => collectPerformanceStats(chunks, stats.fps), [chunks, stats.fps]);
@@ -164,23 +165,26 @@ export default function App() {
     const chunkX = worldTileX >= 0n ? worldTileX / 16n : (worldTileX - 15n) / 16n;
     const chunkY = worldTileY >= 0n ? worldTileY / 16n : (worldTileY - 15n) / 16n;
     const now = performance.now();
+    if (now - lastStatsAt.current >= 100) {
+      lastStatsAt.current = now;
+      setStats({
+        worldX: formatWorldCoordinate(state.tileX, state.localX),
+        worldY: formatWorldCoordinate(state.tileY, state.localZ),
+        worldTileX: worldTileX.toString(),
+        worldTileY: worldTileY.toString(),
+        offsetX,
+        offsetY,
+        chunkX: chunkX.toString(),
+        chunkY: chunkY.toString(),
+        cameraYaw: state.cameraYaw,
+        cameraZoom: state.cameraZoom,
+        fps: state.fps,
+      });
+    }
+    if (now - lastExplorationAt.current < 1500) return;
+    lastExplorationAt.current = now;
     const previous = lastTile.current;
     lastTile.current = { x: worldTileX, y: worldTileY, offsetX, offsetY };
-    if (now - lastStatsAt.current < 100) return;
-    lastStatsAt.current = now;
-    setStats({
-      worldX: formatWorldCoordinate(state.tileX, state.localX),
-      worldY: formatWorldCoordinate(state.tileY, state.localZ),
-      worldTileX: worldTileX.toString(),
-      worldTileY: worldTileY.toString(),
-      offsetX,
-      offsetY,
-      chunkX: chunkX.toString(),
-      chunkY: chunkY.toString(),
-      cameraYaw: state.cameraYaw,
-      cameraZoom: state.cameraZoom,
-      fps: state.fps,
-    });
     setExploration((current) => {
       const visitedChunks = new Set(current.visitedChunks);
       visitedChunks.add(`${chunkX},${chunkY}`);

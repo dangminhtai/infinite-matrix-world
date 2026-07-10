@@ -27,11 +27,11 @@ export function TreeInstances({ chunks, originCx, originCy }: { chunks: ChunkPay
   }, [dummy, instances]);
   return (
     <group>
-      <instancedMesh ref={leavesRef} args={[undefined, undefined, instances.length]} castShadow receiveShadow>
+      <instancedMesh ref={leavesRef} args={[undefined, undefined, instances.length]}>
         <coneGeometry args={[0.42, 1.25, 6]} />
         <meshStandardMaterial color="#2d7f42" roughness={0.95} />
       </instancedMesh>
-      <instancedMesh ref={trunksRef} args={[undefined, undefined, instances.length]} castShadow>
+      <instancedMesh ref={trunksRef} args={[undefined, undefined, instances.length]}>
         <cylinderGeometry args={[0.11, 0.16, 0.85, 5]} />
         <meshStandardMaterial color="#7a5230" roughness={0.9} />
       </instancedMesh>

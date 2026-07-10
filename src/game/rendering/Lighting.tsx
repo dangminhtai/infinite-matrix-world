@@ -25,7 +25,7 @@ export function Lighting() {
   return (
     <>
       <ambientLight ref={ambientRef} intensity={0.55} />
-      <directionalLight ref={sunRef} position={[24, 38, 18]} intensity={2.2} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+      <directionalLight ref={sunRef} position={[24, 38, 18]} intensity={2.2} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
       <fog attach="fog" args={["#cde8ff", 48, 132]} />
     </>
   );

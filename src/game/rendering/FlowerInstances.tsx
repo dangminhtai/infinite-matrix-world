@@ -21,7 +21,7 @@ export function FlowerInstances({ chunks, originCx, originCy }: { chunks: ChunkP
     if (ref.current) ref.current.instanceMatrix.needsUpdate = true;
   }, [dummy, instances]);
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, instances.length]} castShadow>
+    <instancedMesh ref={ref} args={[undefined, undefined, instances.length]}>
       <octahedronGeometry args={[1, 0]} />
       <meshStandardMaterial color="#f26aa3" roughness={0.7} />
     </instancedMesh>
