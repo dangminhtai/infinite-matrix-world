@@ -11,6 +11,7 @@ import { LoadingOverlay } from "./ui/LoadingOverlay";
 import { Minimap } from "./ui/Minimap";
 import { collectPerformanceStats, PerformancePanel } from "./ui/PerformancePanel";
 import { emptyExploration, ExplorationPanel, type ExplorationStats } from "./ui/ExplorationPanel";
+import { BIOME_NAMES } from "./game/types";
 
 function defaultSeedStrings(): string[][] {
   const saved = localStorage.getItem("ihmw.seed");
@@ -41,6 +42,7 @@ export default function App() {
   const [stats, setStats] = useState({ worldX: "0", worldY: "0", chunkX: "0", chunkY: "0", cameraYaw: 0, cameraZoom: 23, fps: 0 });
   const [showPerformance, setShowPerformance] = useState(false);
   const [showExploration, setShowExploration] = useState(false);
+  const [resetCameraToken, setResetCameraToken] = useState(0);
   const [exploration, setExploration] = useState<ExplorationStats>(() => {
     const saved = localStorage.getItem(`ihmw.exploration.${seedKey}`);
     if (!saved) return emptyExploration(seedKey);
@@ -122,6 +124,14 @@ export default function App() {
     setStatus("loading");
   }, [manager, stats.chunkX, stats.chunkY]);
 
+  const resetExploration = useCallback(() => {
+    const next = emptyExploration(seedKey);
+    seenDecorKeys.current.clear();
+    lastTile.current = null;
+    localStorage.setItem(`ihmw.exploration.${seedKey}`, JSON.stringify(next));
+    setExploration(next);
+  }, [seedKey]);
+
   const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number }) => {
     const worldX = state.tileX + BigInt(Math.floor(state.localX));
     const worldY = state.tileY + BigInt(Math.floor(state.localZ));
@@ -138,7 +148,7 @@ export default function App() {
       visitedChunks.add(`${chunkX},${chunkY}`);
       const biomes = new Set(current.visitedBiomes);
       const currentChunk = chunks.find((chunk) => chunk.cx === chunkX.toString() && chunk.cy === chunkY.toString());
-      currentChunk?.biomes.forEach((biome) => biomes.add(biome));
+      currentChunk?.biomes.forEach((biome) => biomes.add(BIOME_NAMES[biome] ?? "grass"));
       let seenTrees = current.seenTrees;
       let seenRocks = current.seenRocks;
       let seenFlowers = current.seenFlowers;
@@ -169,7 +179,7 @@ export default function App() {
 
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} />
+      <GameCanvas chunks={chunks} debug={debug} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} />
       <HUD
         worldX={stats.worldX}
         worldY={stats.worldY}
@@ -185,12 +195,13 @@ export default function App() {
         onTeleport={() => setShowTeleport(true)}
         onClear={clearCache}
         onDebug={() => setDebug((v) => !v)}
+        onResetCamera={() => setResetCameraToken((v) => v + 1)}
         onPerformance={() => setShowPerformance((v) => !v)}
         onExploration={() => setShowExploration((v) => !v)}
       />
       <Minimap chunks={chunks} worldX={stats.worldX} worldY={stats.worldY} cameraYaw={stats.cameraYaw} />
       {showPerformance && <PerformancePanel stats={performanceStats} />}
-      {showExploration && <ExplorationPanel stats={exploration} />}
+      {showExploration && <ExplorationPanel stats={exploration} onReset={resetExploration} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={(x, y) => {
         setTeleport({ x, y, token: Date.now() });

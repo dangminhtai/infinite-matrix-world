@@ -5,10 +5,12 @@ import { TreeInstances } from "./TreeInstances";
 import { RockInstances } from "./RockInstances";
 import { FlowerInstances } from "./FlowerInstances";
 import { Lighting } from "./Lighting";
+import { SkyDome } from "./SkyDome";
 
 export function WorldRenderer({ chunks, originCx, originCy, debug }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; debug: boolean }) {
   return (
     <>
+      <SkyDome />
       <Lighting />
       <Water />
       {chunks.map((chunk) => <TerrainChunk key={`${chunk.cx},${chunk.cy}`} chunk={chunk} originCx={originCx} originCy={originCy} />)}

@@ -12,6 +12,6 @@ export function sampleChunkHeight(chunks: Map<string, ChunkPayload>, wx: bigint,
   const clampedY = Math.max(0, Math.min(CHUNK_SIZE - 1, ly));
   return {
     height: chunk.heights[clampedY * (CHUNK_SIZE + 1) + clampedX] ?? 0,
-    walkable: chunk.walkable[clampedY * CHUNK_SIZE + clampedX] ?? false,
+    walkable: (chunk.walkable[clampedY * CHUNK_SIZE + clampedX] ?? 0) === 1,
   };
 }

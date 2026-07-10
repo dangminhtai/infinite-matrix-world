@@ -1,5 +1,6 @@
 export const P = (1n << 61n) - 1n;
 export const CHUNK_SIZE = 16;
+export const TERRAIN_VISUAL_SUBDIVISIONS = 32;
 export const ACTIVE_RADIUS = 3;
 export const MAX_CHUNK_STATES = 256;
 export const MAX_GENERATED_CHUNKS = 96;

@@ -13,6 +13,7 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
       return Math.hypot(values[0].x - values[1].x, values[0].y - values[1].y);
     };
     const down = (e: PointerEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest("button,input,select,textarea,.modal,.hud,.sidePanel,.minimap")) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       lastPinch = pinchDistance();
       lastX = e.clientX;
@@ -35,6 +36,7 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
     const up = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
       lastPinch = pinchDistance();
+      if (e.target instanceof HTMLElement && e.target.closest("button,input,select,textarea,.modal,.hud,.sidePanel,.minimap")) return;
       if (!draggingRight && e.button === 0) onClickMove(e.clientX, e.clientY);
       draggingRight = false;
     };

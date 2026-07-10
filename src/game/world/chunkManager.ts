@@ -11,6 +11,7 @@ export class ChunkManager {
   readonly rendered = new LruCache<string, ChunkPayload>(MAX_RENDERED_CHUNKS);
   readonly pending = new Set<string>();
   readonly queue: string[] = [];
+  private wantedKeys = new Set<string>();
   private readonly worker = new Worker(new URL("../workers/chunk.worker.ts", import.meta.url), { type: "module" });
   private requestId = 1;
   private readonly listeners = new Set<Listener>();
@@ -26,7 +27,9 @@ export class ChunkManager {
       const key = this.key(BigInt(msg.cx), BigInt(msg.cy));
       this.pending.delete(key);
       this.generated.set(key, msg.payload);
-      this.rendered.set(key, msg.payload);
+      if (this.wantedKeys.has(key)) {
+        this.rendered.set(key, msg.payload);
+      }
       this.listeners.forEach((listener) => listener(msg.payload));
     };
     this.worker.onerror = (event) => {
@@ -54,6 +57,7 @@ export class ChunkManager {
     this.rendered.clear();
     this.pending.clear();
     this.queue.length = 0;
+    this.wantedKeys.clear();
   }
 
   dispose(): void {
@@ -75,6 +79,7 @@ export class ChunkManager {
     }
     wanted.sort((a, b) => a[2] - b[2]);
     const keep = new Set(wanted.map(([x, y]) => this.key(x, y)));
+    this.wantedKeys = keep;
     for (const [x, y] of wanted) this.request(x, y);
     for (const key of this.rendered.keys()) {
       if (!keep.has(key)) this.rendered.delete(key);

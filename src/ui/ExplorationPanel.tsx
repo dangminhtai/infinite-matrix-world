@@ -28,7 +28,7 @@ export function emptyExploration(seedKey: string): ExplorationStats {
   };
 }
 
-export function ExplorationPanel({ stats }: { stats: ExplorationStats }) {
+export function ExplorationPanel({ stats, onReset }: { stats: ExplorationStats; onReset: () => void }) {
   return (
     <section className="sidePanel explorationPanel">
       <h2>Exploration</h2>
@@ -42,6 +42,7 @@ export function ExplorationPanel({ stats }: { stats: ExplorationStats }) {
       <span>Seen rocks {stats.seenRocks}</span>
       <span>Seen flowers {stats.seenFlowers}</span>
       <span>Teleports {stats.teleports}</span>
+      <button className="panelButton" onClick={onReset}>Reset journey</button>
     </section>
   );
 }

@@ -2,7 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
 
-export function ThirdPersonCamera({ target, yaw, pitch, zoom }: { target: THREE.Vector3; yaw: number; pitch: number; zoom: number }) {
+export function ThirdPersonCamera({ target, yaw, pitch, zoom, minY }: { target: THREE.Vector3; yaw: number; pitch: number; zoom: number; minY: number }) {
   const desired = useMemo(() => new THREE.Vector3(), []);
   const lookAt = useMemo(() => new THREE.Vector3(), []);
   const { camera } = useThree();
@@ -13,6 +13,7 @@ export function ThirdPersonCamera({ target, yaw, pitch, zoom }: { target: THREE.
       target.z + Math.cos(yaw) * Math.cos(pitch) * zoom,
     );
     camera.position.lerp(desired, 1 - Math.exp(-8 * delta));
+    if (camera.position.y < minY) camera.position.y = minY;
     lookAt.set(target.x, target.y + 0.95, target.z);
     camera.lookAt(lookAt);
   });

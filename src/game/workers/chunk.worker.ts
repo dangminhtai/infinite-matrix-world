@@ -6,6 +6,23 @@ import type { ChunkWorkerRequest, ChunkWorkerResponse } from "./workerMessages";
 let world: HybridMatrixWorld | null = null;
 let seedKey = "";
 
+function transferChunk(response: ChunkWorkerResponse): void {
+  if (response.type === "error") {
+    self.postMessage(response);
+    return;
+  }
+  const payload = response.payload;
+  self.postMessage(response, [
+    payload.heights.buffer,
+    payload.biomes.buffer,
+    payload.walkable.buffer,
+    payload.terrainPositions.buffer,
+    payload.terrainNormals.buffer,
+    payload.terrainColors.buffer,
+    payload.terrainIndices.buffer,
+  ]);
+}
+
 function getWorld(seed: string[][]): HybridMatrixWorld {
   const key = JSON.stringify(seed);
   if (!world || key !== seedKey) {
@@ -20,12 +37,15 @@ self.onmessage = (event: MessageEvent<ChunkWorkerRequest>) => {
   try {
     if (request.type === "clear") {
       world?.clearCaches();
-      self.postMessage({ type: "chunkGenerated", requestId: request.requestId, cx: "0", cy: "0", payload: generateChunk(getWorld(matrixToStrings(world?.seed ?? [[1n, 3n], [2n, 4n]])), 0n, 0n) } satisfies ChunkWorkerResponse);
+      const payload = generateChunk(getWorld(matrixToStrings(world?.seed ?? [[1n, 3n], [2n, 4n]])), 0n, 0n);
+      const response = { type: "chunkGenerated", requestId: request.requestId, cx: "0", cy: "0", payload } satisfies ChunkWorkerResponse;
+      transferChunk(response);
       return;
     }
     const activeWorld = getWorld(request.seed);
     const payload = generateChunk(activeWorld, BigInt(request.cx), BigInt(request.cy));
-    self.postMessage({ type: "chunkGenerated", requestId: request.requestId, cx: request.cx, cy: request.cy, payload } satisfies ChunkWorkerResponse);
+    const response = { type: "chunkGenerated", requestId: request.requestId, cx: request.cx, cy: request.cy, payload } satisfies ChunkWorkerResponse;
+    transferChunk(response);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     self.postMessage({ type: "error", requestId: request.requestId, message: err.message, stack: err.stack } satisfies ChunkWorkerResponse);

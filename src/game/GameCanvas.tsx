@@ -11,6 +11,7 @@ import { clampCamera } from "./controls/TouchCameraControls";
 import { usePointerControls } from "./controls/PointerControls";
 import { normalizeInput, type MoveInput } from "./player/movement";
 import { sampleChunkHeight } from "./player/collision";
+import { GrassRing } from "./rendering/GrassRing";
 
 function floorDiv(a: bigint, b: bigint): bigint {
   let q = a / b;
@@ -19,7 +20,7 @@ function floorDiv(a: bigint, b: bigint): bigint {
   return q;
 }
 
-type GameState = {
+export type GameState = {
   tileX: bigint;
   tileY: bigint;
   localX: number;
@@ -38,6 +39,7 @@ function Scene({
   onStats,
   moveRef,
   teleport,
+  resetCameraToken,
 }: {
   chunks: ChunkPayload[];
   debug: boolean;
@@ -45,6 +47,7 @@ function Scene({
   onStats: (state: GameState) => void;
   moveRef: MutableRefObject<MoveInput>;
   teleport: { x: bigint; y: bigint; token: number } | null;
+  resetCameraToken: number;
 }) {
   const chunkMap = useMemo(() => new Map(chunks.map((chunk) => [`${chunk.cx},${chunk.cy}`, chunk])), [chunks]);
   const game = useRef<GameState>({ tileX: 0n, tileY: 0n, localX: 8, localZ: 8, height: 0, yaw: 0, cameraYaw: Math.PI * 0.75, cameraZoom: 23, fps: 0 });
@@ -54,6 +57,13 @@ function Scene({
   const [, forceRender] = useState(0);
   const { camera, raycaster, scene } = useThree();
   const playerTarget = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => {
+    cameraAngles.current.yaw = Math.PI * 0.75;
+    cameraAngles.current.pitch = 0.72;
+    cameraAngles.current.zoom = 23;
+    forceRender((v) => v + 1);
+  }, [resetCameraToken]);
 
   useEffect(() => {
     if (!teleport) return;
@@ -83,7 +93,7 @@ function Scene({
   const clickMove = useCallback((x: number, y: number) => {
     const ndc = new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObjects(scene.children, true).filter((hit) => hit.object.type === "Mesh");
+    const hits = raycaster.intersectObjects(scene.children, true).filter((hit) => hit.object.userData.terrain === true);
     const hit = hits[0];
     if (!hit) return;
     const originCx = floorDiv(game.current.tileX, BigInt(CHUNK_SIZE));
@@ -187,8 +197,9 @@ function Scene({
   return (
     <>
       <WorldRenderer chunks={chunks} originCx={originCx} originCy={originCy} debug={debug} />
+      <GrassRing chunks={chunks} originCx={originCx} originCy={originCy} player={game} />
       <Player position={[game.current.localX, game.current.height, game.current.localZ]} yaw={game.current.yaw} />
-      <ThirdPersonCamera target={playerTarget} yaw={cameraAngles.current.yaw} pitch={cameraAngles.current.pitch} zoom={cameraAngles.current.zoom} />
+      <ThirdPersonCamera target={playerTarget} yaw={cameraAngles.current.yaw} pitch={cameraAngles.current.pitch} zoom={cameraAngles.current.zoom} minY={game.current.height + 1.8} />
     </>
   );
 }
@@ -199,6 +210,7 @@ export function GameCanvas(props: {
   onChunkChange: (cx: bigint, cy: bigint) => void;
   onStats: (state: GameState) => void;
   teleport: { x: bigint; y: bigint; token: number } | null;
+  resetCameraToken: number;
 }) {
   const moveRef = useRef<MoveInput>({ x: 0, y: 0 });
   return (
@@ -211,6 +223,7 @@ export function GameCanvas(props: {
           onStats={props.onStats}
           moveRef={moveRef}
           teleport={props.teleport}
+          resetCameraToken={props.resetCameraToken}
         />
       </Canvas>
       <VirtualJoystick onChange={(input) => { moveRef.current = input; }} />

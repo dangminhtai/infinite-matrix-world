@@ -3,6 +3,7 @@ dist/
 .vite/
 .vite-temp/
 *.tsbuildinfo
+references/
 
 *.log
 npm-debug.log*

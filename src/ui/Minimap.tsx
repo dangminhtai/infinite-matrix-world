@@ -1,14 +1,14 @@
 import { useEffect, useRef } from "react";
 import { CHUNK_SIZE } from "../game/constants";
-import type { Biome, ChunkPayload } from "../game/types";
+import type { BiomeId, ChunkPayload } from "../game/types";
 
-const biomeColors: Record<Biome, string> = {
-  water: "#4aa3df",
-  mountain: "#8c8f95",
-  forest: "#2f8f4e",
-  soil: "#9b7653",
-  sand: "#d9c27c",
-  grass: "#71bf54",
+const biomeColors: Record<BiomeId, string> = {
+  0: "#4aa3df",
+  1: "#8c8f95",
+  2: "#2f8f4e",
+  3: "#9b7653",
+  4: "#d9c27c",
+  5: "#71bf54",
 };
 
 export function Minimap({
@@ -58,7 +58,7 @@ export function Minimap({
           const sx = cssSize / 2 + Number(wx - px) * scale;
           const sy = cssSize / 2 + Number(wy - py) * scale;
           if (sx < -4 || sy < -4 || sx > cssSize + 4 || sy > cssSize + 4) continue;
-          ctx.fillStyle = biomeColors[chunk.biomes[y * CHUNK_SIZE + x] ?? "grass"];
+          ctx.fillStyle = biomeColors[(chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId];
           ctx.fillRect(sx, sy, scale + 0.5, scale + 0.5);
         }
       }

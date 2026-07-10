@@ -15,6 +15,7 @@ export function HUD({
   onTeleport,
   onClear,
   onDebug,
+  onResetCamera,
   onPerformance,
   onExploration,
 }: {
@@ -32,6 +33,7 @@ export function HUD({
   onTeleport: () => void;
   onClear: () => void;
   onDebug: () => void;
+  onResetCamera: () => void;
   onPerformance: () => void;
   onExploration: () => void;
 }) {
@@ -52,6 +54,7 @@ export function HUD({
         <button onClick={onSeed}>Seed</button>
         <button onClick={onTeleport}>Teleport</button>
         <button onClick={onClear}>Clear cache</button>
+        <button onClick={onResetCamera}>Reset camera</button>
         <button onClick={onDebug}>{debug ? "Hide debug" : "Debug"}</button>
         <button onClick={onPerformance}>Performance</button>
         <button onClick={onExploration}>Journey</button>

@@ -113,6 +113,11 @@ button:hover {
   background: rgba(255, 255, 255, 0.62);
 }
 
+.panelButton {
+  width: 100%;
+  justify-self: stretch;
+}
+
 .joystick {
   position: fixed;
   left: 22px;
