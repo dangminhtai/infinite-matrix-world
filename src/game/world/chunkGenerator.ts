@@ -78,8 +78,43 @@ function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint,
   const terrainPositions = new Float32Array(vertexCount * 3);
   const terrainNormals = new Float32Array(vertexCount * 3);
   const terrainColors = new Float32Array(vertexCount * 3);
-  const visualHeights = new Float32Array(coreVertexCount);
+  const expandedRow = row + 2;
+  const visualHeights = new Float32Array(expandedRow * expandedRow);
   const terrainIndices = new Uint32Array((subdivisions * subdivisions + subdivisions * 4) * 6);
+
+  const visualHeightAt = (gridX: number, gridZ: number): number => {
+    const localX = gridX * step;
+    const localZ = gridZ * step;
+    const floorX = Math.floor(localX);
+    const floorZ = Math.floor(localZ);
+    const fractionalX = localX - floorX;
+    const fractionalZ = localZ - floorZ;
+    let baseHeight: number;
+    if (gridX >= 0 && gridX <= subdivisions && gridZ >= 0 && gridZ <= subdivisions) {
+      baseHeight = bilinearHeight(heights, size, localX, localZ);
+    } else {
+      const wx = cx * BigInt(size) + BigInt(floorX);
+      const wy = cy * BigInt(size) + BigInt(floorZ);
+      const h00 = terrainElevation(sampleHeight(world, wx, wy));
+      const h10 = terrainElevation(sampleHeight(world, wx + 1n, wy));
+      const h01 = terrainElevation(sampleHeight(world, wx, wy + 1n));
+      const h11 = terrainElevation(sampleHeight(world, wx + 1n, wy + 1n));
+      const a = h00 + (h10 - h00) * fractionalX;
+      const b = h01 + (h11 - h01) * fractionalX;
+      baseHeight = a + (b - a) * fractionalZ;
+    }
+    const detailMask = Math.sin(Math.PI * fractionalX) * Math.sin(Math.PI * fractionalZ);
+    const detailX = cx * BigInt(subdivisions) + BigInt(gridX);
+    const detailZ = cy * BigInt(subdivisions) + BigInt(gridZ);
+    const detail = (world.unitRandom(detailX, detailZ, SALTS.heightC + 17n) - 0.5) * 0.18 * detailMask;
+    return baseHeight + detail;
+  };
+
+  for (let z = -1; z <= subdivisions + 1; z += 1) {
+    for (let x = -1; x <= subdivisions + 1; x += 1) {
+      visualHeights[(z + 1) * expandedRow + x + 1] = visualHeightAt(x, z);
+    }
+  }
 
   for (let z = 0; z <= subdivisions; z += 1) {
     for (let x = 0; x <= subdivisions; x += 1) {
@@ -87,16 +122,9 @@ function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint,
       const localZ = z * step;
       const logicX = Math.min(size - 1, Math.floor(localX));
       const logicZ = Math.min(size - 1, Math.floor(localZ));
-      const fractionalX = localX - Math.floor(localX);
-      const fractionalZ = localZ - Math.floor(localZ);
-      const detailMask = Math.sin(Math.PI * fractionalX) * Math.sin(Math.PI * fractionalZ);
-      const wx = cx * BigInt(subdivisions) + BigInt(x);
-      const wy = cy * BigInt(subdivisions) + BigInt(z);
-      const detail = (world.unitRandom(wx, wy, SALTS.heightC + 17n) - 0.5) * 0.18 * detailMask;
-      const height = bilinearHeight(heights, size, localX, localZ) + detail;
+      const height = visualHeights[(z + 1) * expandedRow + x + 1];
       const vertexIndex = z * row + x;
       const stride = vertexIndex * 3;
-      visualHeights[vertexIndex] = height;
       terrainPositions[stride] = localX;
       terrainPositions[stride + 1] = height;
       terrainPositions[stride + 2] = localZ;
@@ -113,10 +141,12 @@ function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint,
   for (let z = 0; z <= subdivisions; z += 1) {
     for (let x = 0; x <= subdivisions; x += 1) {
       const vertexIndex = z * row + x;
-      const left = visualHeights[z * row + Math.max(0, x - 1)];
-      const right = visualHeights[z * row + Math.min(subdivisions, x + 1)];
-      const down = visualHeights[Math.max(0, z - 1) * row + x];
-      const up = visualHeights[Math.min(subdivisions, z + 1) * row + x];
+      const expandedX = x + 1;
+      const expandedZ = z + 1;
+      const left = visualHeights[expandedZ * expandedRow + expandedX - 1];
+      const right = visualHeights[expandedZ * expandedRow + expandedX + 1];
+      const down = visualHeights[(expandedZ - 1) * expandedRow + expandedX];
+      const up = visualHeights[(expandedZ + 1) * expandedRow + expandedX];
       writeNormal(terrainNormals, vertexIndex * 3, left, right, down, up, step);
     }
   }

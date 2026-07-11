@@ -4,6 +4,8 @@ import type { ChunkPayload } from "../types";
 import { TERRAIN_VISUAL_SUBDIVISIONS } from "../constants";
 import type { GameSettings } from "../settings";
 
+const TERRAIN_MATERIAL = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+
 function indicesForDetail(source: Uint32Array, detail: GameSettings["graphics"]["terrainDetail"]): Uint32Array {
   if (detail === "high") return source;
   const subdivisions = TERRAIN_VISUAL_SUBDIVISIONS;
@@ -52,7 +54,7 @@ export function TerrainChunk({ chunk, originCx, originCy, castShadow, detail }: 
 
   return (
     <mesh geometry={geometry} position={position} userData={{ terrain: true }} receiveShadow castShadow={castShadow}>
-      <meshStandardMaterial vertexColors roughness={0.9} />
+      <primitive object={TERRAIN_MATERIAL} attach="material" />
     </mesh>
   );
 }

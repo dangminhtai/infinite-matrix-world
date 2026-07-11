@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ChunkPayload } from "../types";
 
-export function RockInstances({ chunks, originCx, originCy, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; density: number }) {
+export function RockInstances({ chunks, originCx, originCy, density, castShadow }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; density: number; castShadow: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const instances = useMemo(() => chunks.flatMap((chunk) => {
@@ -18,10 +18,13 @@ export function RockInstances({ chunks, originCx, originCy, density }: { chunks:
       dummy.updateMatrix();
       ref.current?.setMatrixAt(i, dummy.matrix);
     });
-    if (ref.current) ref.current.instanceMatrix.needsUpdate = true;
+    if (ref.current) {
+      ref.current.instanceMatrix.needsUpdate = true;
+      ref.current.computeBoundingSphere();
+    }
   }, [dummy, instances]);
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, instances.length]} receiveShadow>
+    <instancedMesh ref={ref} args={[undefined, undefined, instances.length]} receiveShadow castShadow={castShadow}>
       <dodecahedronGeometry args={[0.55, 0]} />
       <meshStandardMaterial color="#777b80" roughness={0.95} />
     </instancedMesh>

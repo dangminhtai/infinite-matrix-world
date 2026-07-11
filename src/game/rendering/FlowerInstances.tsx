@@ -18,7 +18,10 @@ export function FlowerInstances({ chunks, originCx, originCy, density }: { chunk
       dummy.updateMatrix();
       ref.current?.setMatrixAt(i, dummy.matrix);
     });
-    if (ref.current) ref.current.instanceMatrix.needsUpdate = true;
+    if (ref.current) {
+      ref.current.instanceMatrix.needsUpdate = true;
+      ref.current.computeBoundingSphere();
+    }
   }, [dummy, instances]);
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, instances.length]}>

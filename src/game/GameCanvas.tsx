@@ -47,6 +47,12 @@ export type GameState = {
   cameraYaw: number;
   cameraZoom: number;
   fps: number;
+  frameTimeMs: number;
+  frameTimeMaxMs: number;
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
 };
 
 type PlayerInputState = {
@@ -72,7 +78,7 @@ function Scene({
 }: {
   chunks: ChunkPayload[];
   debug: boolean;
-  onChunkChange: (cx: bigint, cy: bigint) => void;
+  onChunkChange: (cx: bigint, cy: bigint, direction?: { x: number; y: number }) => void;
   onStats: (state: GameState) => void;
   inputRef: MutableRefObject<PlayerInputState>;
   teleport: { x: bigint; y: bigint; token: number } | null;
@@ -97,13 +103,19 @@ function Scene({
     cameraYaw: Math.PI * 0.75,
     cameraZoom: 18,
     fps: 0,
+    frameTimeMs: 0,
+    frameTimeMaxMs: 0,
+    drawCalls: 0,
+    triangles: 0,
+    geometries: 0,
+    textures: 0,
   });
   const target = useRef<{ x: bigint; y: bigint } | null>(null);
   const pendingRebase = useRef<{ shiftX: number; shiftZ: number } | null>(null);
   const pendingTeleport = useRef<{ tileX: bigint; tileY: bigint; localX: number; localZ: number } | null>(null);
   const [renderOrigin, setRenderOrigin] = useState({ cx: 0n, cy: 0n });
   const cameraAngles = useRef<CameraState>({ yaw: Math.PI * 0.75, pitch: Math.PI / 5, distance: 18, targetHeight: 1.15 });
-  const fpsRef = useRef({ frames: 0, elapsed: 0, fps: 0 });
+  const fpsRef = useRef({ frames: 0, elapsed: 0, fps: 0, frameTimeMs: 0, frameTimeMaxMs: 0 });
   const { camera, raycaster, scene } = useThree();
 
   useEffect(() => {
@@ -131,7 +143,7 @@ function Scene({
     pendingRebase.current = null;
     setRenderOrigin({ cx, cy });
     target.current = null;
-    onChunkChange(cx, cy);
+    onChunkChange(cx, cy, { x: 0, y: 0 });
   }, [onChunkChange, teleport]);
 
   useLayoutEffect(() => {
@@ -228,15 +240,19 @@ function Scene({
     };
   }, [inputRef, settings.controls]);
 
-  useFrame((_, delta) => {
+  useFrame((renderState, delta) => {
+    const state = game.current;
     fpsRef.current.frames += 1;
     fpsRef.current.elapsed += delta;
+    fpsRef.current.frameTimeMaxMs = Math.max(fpsRef.current.frameTimeMaxMs, delta * 1000);
     if (fpsRef.current.elapsed >= 0.5) {
       fpsRef.current.fps = Math.round(fpsRef.current.frames / fpsRef.current.elapsed);
+      fpsRef.current.frameTimeMs = (fpsRef.current.elapsed / fpsRef.current.frames) * 1000;
       fpsRef.current.frames = 0;
       fpsRef.current.elapsed = 0;
+      state.frameTimeMaxMs = fpsRef.current.frameTimeMaxMs;
+      fpsRef.current.frameTimeMaxMs = 0;
     }
-    const state = game.current;
     const controls = inputRef.current;
     const keyX = paused ? 0 : (controls.pressed.has(settings.controls.right) ? 1 : 0) - (controls.pressed.has(settings.controls.left) ? 1 : 0);
     const keyY = paused ? 0 : (controls.pressed.has(settings.controls.backward) ? 1 : 0) - (controls.pressed.has(settings.controls.forward) ? 1 : 0);
@@ -323,10 +339,15 @@ function Scene({
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const cx = floorDiv(worldTileX, BigInt(CHUNK_SIZE));
     const cy = floorDiv(worldTileY, BigInt(CHUNK_SIZE));
-    onChunkChange(cx, cy);
+    onChunkChange(cx, cy, { x: worldDx, y: worldDz });
     state.cameraYaw = cameraAngles.current.yaw;
     state.cameraZoom = cameraAngles.current.distance;
     state.fps = fpsRef.current.fps;
+    state.frameTimeMs = fpsRef.current.frameTimeMs;
+    state.drawCalls = renderState.gl.info.render.calls;
+    state.triangles = renderState.gl.info.render.triangles;
+    state.geometries = renderState.gl.info.memory.geometries;
+    state.textures = renderState.gl.info.memory.textures;
     onStats(state);
   });
 
@@ -334,7 +355,7 @@ function Scene({
   const originCy = renderOrigin.cy;
   return (
     <>
-      <WorldRenderer chunks={chunks} originCx={originCx} originCy={originCy} debug={debug} graphics={settings.graphics} />
+      <WorldRenderer chunks={chunks} originCx={originCx} originCy={originCy} debug={debug} graphics={settings.graphics} player={game} />
       {settings.graphics.decorativeGrass && <GrassRing chunks={chunks} originCx={originCx} originCy={originCy} player={game} density={settings.graphics.vegetationDensity} />}
       <Player state={game} debugCollision={debugCollision} />
       <ThirdPersonCamera
@@ -352,7 +373,7 @@ function Scene({
 export const GameCanvas = memo(function GameCanvas(props: {
   chunks: ChunkPayload[];
   debug: boolean;
-  onChunkChange: (cx: bigint, cy: bigint) => void;
+  onChunkChange: (cx: bigint, cy: bigint, direction?: { x: number; y: number }) => void;
   onStats: (state: GameState) => void;
   teleport: { x: bigint; y: bigint; token: number } | null;
   resetCameraToken: number;

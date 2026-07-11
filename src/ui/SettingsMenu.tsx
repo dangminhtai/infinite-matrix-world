@@ -17,6 +17,8 @@ type DeveloperStats = {
   originY: string;
   loadedChunks: number;
   pendingChunks: number;
+  inFlightChunks: number;
+  queuedChunks: number;
   cacheSize: number;
   status: WorkerStatus;
   tests: string[];
@@ -84,7 +86,11 @@ export function SettingsMenu({
   onResetExploration: () => void;
 }) {
   const [draft, setDraft] = useState<GameSettings>(() => structuredClone(settings));
-  const [tab, setTab] = useState<Tab>("gameplay");
+  const [tab, setTab] = useState<Tab>(() => {
+    if (!import.meta.env.DEV) return "gameplay";
+    const requested = new URLSearchParams(window.location.search).get("settings") as Tab | null;
+    return requested && ["gameplay", "graphics", "controls", "world", "developer"].includes(requested) ? requested : "gameplay";
+  });
 
   useEffect(() => setDraft(structuredClone(settings)), [settings]);
 
@@ -165,7 +171,7 @@ export function SettingsMenu({
           {tab === "developer" && <div className="settingsSection developerSection">
             <h3>Runtime</h3>
             <div className="metricsGrid">
-              <span>FPS<strong>{performance.fps}</strong></span><span>JS heap<strong>{performance.jsHeap}</strong></span><span>Chunk data<strong>{(performance.chunkPayloadBytes / 1024 / 1024).toFixed(1)} MB</strong></span><span>Worker avg<strong>{performance.workerAvgMs.toFixed(1)} ms</strong></span><span>Worker max<strong>{performance.workerMaxMs.toFixed(1)} ms</strong></span><span>Triangles<strong>~{performance.estimatedTriangles.toLocaleString()}</strong></span><span>Draw calls<strong>~{performance.estimatedDrawCalls}</strong></span><span>Loaded chunks<strong>{developer.loadedChunks}</strong></span><span>Pending chunks<strong>{developer.pendingChunks}</strong></span><span>Cache size<strong>{developer.cacheSize}</strong></span><span>Worker<strong>{developer.status}</strong></span><span>World<strong>{developer.worldX}, {developer.worldY}</strong></span><span>Chunk<strong>{developer.chunkX}, {developer.chunkY}</strong></span><span>Floating origin<strong>{developer.originX}, {developer.originY}</strong></span>
+              <span>FPS<strong>{performance.fps}</strong></span><span>Frame avg<strong>{performance.frameTimeMs.toFixed(1)} ms</strong></span><span>Frame max<strong>{performance.frameTimeMaxMs.toFixed(1)} ms</strong></span><span>JS heap<strong>{performance.jsHeap}</strong></span><span>Chunk data<strong>{(performance.chunkPayloadBytes / 1024 / 1024).toFixed(1)} MB</strong></span><span>Worker avg<strong>{performance.workerAvgMs.toFixed(1)} ms</strong></span><span>Worker max<strong>{performance.workerMaxMs.toFixed(1)} ms</strong></span><span>Triangles<strong>{performance.estimatedTriangles.toLocaleString()}</strong></span><span>Draw calls<strong>{performance.estimatedDrawCalls}</strong></span><span>Geometries<strong>{performance.geometryCount}</strong></span><span>Textures<strong>{performance.textureCount}</strong></span><span>Loaded chunks<strong>{developer.loadedChunks}</strong></span><span>Wanted chunks<strong>{developer.pendingChunks}</strong></span><span>In-flight<strong>{developer.inFlightChunks}</strong></span><span>Queued locally<strong>{developer.queuedChunks}</strong></span><span>Cache size<strong>{developer.cacheSize}</strong></span><span>Worker<strong>{developer.status}</strong></span><span>World<strong>{developer.worldX}, {developer.worldY}</strong></span><span>Chunk<strong>{developer.chunkX}, {developer.chunkY}</strong></span><span>Floating origin<strong>{developer.originX}, {developer.originY}</strong></span>
             </div>
             <h3>Khám phá</h3>
             <div className="metricsGrid"><span>Chunks đã thăm<strong>{exploration.visitedChunks.length}</strong></span><span>Quãng đường<strong>{exploration.distanceTiles.toFixed(1)}</strong></span><span>Cây đã thấy<strong>{exploration.seenTrees}</strong></span><span>Đá đã thấy<strong>{exploration.seenRocks}</strong></span></div>

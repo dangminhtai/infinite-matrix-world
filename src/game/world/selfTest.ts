@@ -1,4 +1,4 @@
-import { CHUNK_SIZE, DEFAULT_SEED, MAX_CHUNK_STATES, P } from "../constants";
+import { CHUNK_SIZE, DEFAULT_SEED, MAX_CHUNK_STATES, MAX_RANDOM_CACHE, P, TERRAIN_VISUAL_SUBDIVISIONS } from "../constants";
 import { applyTransform, invertTransform } from "./recurrence";
 import { HybridMatrixWorld, floorDiv } from "./hybridWorld";
 import { matMul, matPow } from "./matrix";
@@ -54,10 +54,19 @@ export function selfTest(): string[] {
     const leftB = chunkB.heights[z * (CHUNK_SIZE + 1)];
     assert(Math.abs(rightA - leftB) < 1e-9, "chunk seam");
   }
+  const visualRow = TERRAIN_VISUAL_SUBDIVISIONS + 1;
+  for (let z = 0; z <= TERRAIN_VISUAL_SUBDIVISIONS; z += 1) {
+    const rightA = (z * visualRow + TERRAIN_VISUAL_SUBDIVISIONS) * 3;
+    const leftB = z * visualRow * 3;
+    for (let axis = 0; axis < 3; axis += 1) {
+      assert(Math.abs(chunkA.terrainNormals[rightA + axis] - chunkB.terrainNormals[leftB + axis]) < 1e-6, "chunk normal seam");
+    }
+  }
   passed.push("Chunk seam");
 
   for (let i = 0; i < MAX_CHUNK_STATES + 20; i += 1) world.chunkState(BigInt(i * 1000), BigInt(-i * 977));
   assert(world.chunkCache.size <= MAX_CHUNK_STATES, "cache bound");
+  assert(world.randomCache.size <= MAX_RANDOM_CACHE, "random cache bound");
   passed.push("Cache bound");
 
   let origin = 0n;

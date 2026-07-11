@@ -1,4 +1,4 @@
-import { CHUNK_SIZE, MAX_CHUNK_STATES, P } from "../constants";
+import { CHUNK_SIZE, MAX_CHUNK_STATES, MAX_RANDOM_CACHE, P } from "../constants";
 import { Matrix, deriveAxisMatrices, flatten, matMul, matPow, normalizeMatrix, rowsToColumns } from "./matrix";
 import { LruCache } from "./lruCache";
 import { MIX_CONSTANTS, foldBigInt, mix61, unitFromBigInt } from "./coordinateHash";
@@ -20,6 +20,7 @@ export class HybridMatrixWorld {
   readonly aInv: Matrix;
   readonly bInv: Matrix;
   readonly chunkCache = new LruCache<string, Matrix>(MAX_CHUNK_STATES);
+  readonly randomCache = new LruCache<string, bigint>(MAX_RANDOM_CACHE);
 
   constructor(seedInput: readonly (readonly bigint[])[]) {
     this.seed = normalizeMatrix(seedInput);
@@ -59,12 +60,17 @@ export class HybridMatrixWorld {
   }
 
   randomAt(x: bigint, y: bigint, salt: bigint): bigint {
+    const cacheKey = `${x},${y},${salt}`;
+    const cached = this.randomCache.get(cacheKey);
+    if (cached !== undefined) return cached;
     const cx = floorDiv(x, BigInt(CHUNK_SIZE));
     const cy = floorDiv(y, BigInt(CHUNK_SIZE));
     const state = this.chunkState(cx, cy);
     const hx = foldBigInt(x, salt ^ MIX_CONSTANTS.C2);
     const hy = foldBigInt(y, salt ^ MIX_CONSTANTS.C3);
-    return this.mixedValue(flatten(state), hx, hy, salt % P);
+    const value = this.mixedValue(flatten(state), hx, hy, salt % P);
+    this.randomCache.set(cacheKey, value);
+    return value;
   }
 
   unitRandom(x: bigint, y: bigint, salt: bigint): number {
@@ -87,6 +93,7 @@ export class HybridMatrixWorld {
 
   clearCaches(): void {
     this.chunkCache.clear();
+    this.randomCache.clear();
     this.rememberChunk(0n, 0n, this.seed);
   }
 

@@ -14,6 +14,10 @@ export type PerformanceStats = {
   estimatedDrawCalls: number;
   avgPayloadBytes: number;
   chunkPayloadBytes: number;
+  frameTimeMs: number;
+  frameTimeMaxMs: number;
+  geometryCount: number;
+  textureCount: number;
 };
 
 type PerformanceWithMemory = Performance & {
@@ -29,7 +33,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function collectPerformanceStats(chunks: ChunkPayload[], fps: number, graphics?: GameSettings["graphics"]): PerformanceStats {
+export function collectPerformanceStats(chunks: ChunkPayload[], fps: number, graphics?: GameSettings["graphics"], renderer?: { frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }): PerformanceStats {
   const perf = performance as PerformanceWithMemory;
   const durations = chunks.map((chunk) => chunk.durationMs);
   const density = graphics?.vegetationDensity ?? 1;
@@ -48,10 +52,14 @@ export function collectPerformanceStats(chunks: ChunkPayload[], fps: number, gra
     treeCount,
     rockCount,
     flowerCount,
-    estimatedTriangles: chunks.length * terrainTrianglesPerChunk + treeCount * 11 + rockCount * 20 + flowerCount * 8,
-    estimatedDrawCalls: chunks.length + (treeCount ? 2 : 0) + (rockCount ? 1 : 0) + (flowerCount ? 1 : 0) + 2,
+    estimatedTriangles: renderer?.triangles || chunks.length * terrainTrianglesPerChunk + treeCount * 11 + rockCount * 20 + flowerCount * 8,
+    estimatedDrawCalls: renderer?.drawCalls || chunks.length + (treeCount ? 2 : 0) + (rockCount ? 1 : 0) + (flowerCount ? 1 : 0) + 2,
     avgPayloadBytes,
     chunkPayloadBytes: chunks.reduce((sum, chunk) => sum + chunk.payloadBytes, 0),
+    frameTimeMs: renderer?.frameTimeMs ?? 0,
+    frameTimeMaxMs: renderer?.frameTimeMaxMs ?? 0,
+    geometryCount: renderer?.geometries ?? 0,
+    textureCount: renderer?.textures ?? 0,
   };
 }
 
@@ -60,11 +68,15 @@ export function PerformancePanel({ stats }: { stats: PerformanceStats }) {
     <section className="sidePanel performancePanel">
       <h2>Performance</h2>
       <span>FPS {stats.fps}</span>
+      <span>Frame {stats.frameTimeMs.toFixed(1)} ms</span>
+      <span>Frame max {stats.frameTimeMaxMs.toFixed(1)} ms</span>
       <span>JS heap {stats.jsHeap}</span>
       <span>Worker avg {stats.workerAvgMs.toFixed(1)} ms</span>
       <span>Worker max {stats.workerMaxMs.toFixed(1)} ms</span>
       <span>Triangles ~{stats.estimatedTriangles.toLocaleString()}</span>
       <span>Draw calls ~{stats.estimatedDrawCalls}</span>
+      <span>Geometries {stats.geometryCount}</span>
+      <span>Textures {stats.textureCount}</span>
       <span>Payload avg {formatBytes(stats.avgPayloadBytes)}</span>
       <span>Trees {stats.treeCount}</span>
       <span>Rocks {stats.rockCount}</span>

@@ -1,5 +1,5 @@
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { GameSettings } from "../settings";
 
@@ -45,6 +45,7 @@ export function Water({ quality }: { quality: GameSettings["graphics"]["waterQua
     material.uniforms.uTime.value = clock.elapsedTime;
     if (ref.current) ref.current.position.y = -0.12 + Math.sin(clock.elapsedTime * 1.4) * 0.025;
   });
+  useEffect(() => () => material.dispose(), [material]);
   return (
     <mesh ref={ref} rotation-x={-Math.PI / 2} position={[0, -0.14, 0]} receiveShadow>
       <planeGeometry args={[260, 260, quality === "high" ? 64 : quality === "medium" ? 32 : 12, quality === "high" ? 64 : quality === "medium" ? 32 : 12]} />

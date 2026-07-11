@@ -16,6 +16,10 @@ export class LruCache<K, V> {
     return value;
   }
 
+  has(key: K): boolean {
+    return this.map.has(key);
+  }
+
   set(key: K, value: V): void {
     if (this.map.has(key)) this.map.delete(key);
     this.map.set(key, value);

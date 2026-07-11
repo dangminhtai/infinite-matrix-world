@@ -93,6 +93,12 @@ export default function App() {
     fps: 0,
     health: 100,
     stamina: 100,
+    frameTimeMs: 0,
+    frameTimeMaxMs: 0,
+    drawCalls: 0,
+    triangles: 0,
+    geometries: 0,
+    textures: 0,
   });
   const [resetCameraToken, setResetCameraToken] = useState(0);
   const [exploration, setExploration] = useState<ExplorationStats>(() => {
@@ -109,11 +115,12 @@ export default function App() {
   const lastTile = useRef<{ x: bigint; y: bigint; offsetX: number; offsetY: number } | null>(null);
   const lastStatsAt = useRef(0);
   const lastExplorationAt = useRef(0);
+  const chunkRefreshFrame = useRef<number | null>(null);
   const seenDecorKeys = useRef(new Set<string>());
 
   const performanceStats = useMemo(
-    () => collectPerformanceStats(chunks, stats.fps, effectiveSettings.graphics),
-    [chunks, effectiveSettings.graphics, stats.fps],
+    () => collectPerformanceStats(chunks, stats.fps, effectiveSettings.graphics, stats),
+    [chunks, effectiveSettings.graphics, stats],
   );
 
   useEffect(() => {
@@ -127,7 +134,7 @@ export default function App() {
     const cy = BigInt(cyText);
     manager.ensureAround(cx, cy);
     setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
-    setPending(manager.pending.size);
+    setPending(manager.pendingCount);
   }, [effectiveSettings.graphics.renderDistance, manager]);
 
   useEffect(() => {
@@ -149,9 +156,13 @@ export default function App() {
 
   useEffect(() => {
     const offChunk = manager.onChunk(() => {
-      setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
-      setPending(manager.pending.size);
-      setStatus("ready");
+      if (chunkRefreshFrame.current !== null) return;
+      chunkRefreshFrame.current = window.requestAnimationFrame(() => {
+        chunkRefreshFrame.current = null;
+        setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
+        setPending(manager.pendingCount);
+        setStatus(manager.pendingCount ? "loading" : "ready");
+      });
     });
     const offError = manager.onError((message) => {
       setError(message);
@@ -159,21 +170,23 @@ export default function App() {
     });
     manager.ensureAround(0n, 0n);
     setStatus("loading");
-    setPending(manager.pending.size);
+    setPending(manager.pendingCount);
     return () => {
       offChunk();
       offError();
+      if (chunkRefreshFrame.current !== null) window.cancelAnimationFrame(chunkRefreshFrame.current);
       manager.dispose();
     };
   }, [manager]);
 
-  const ensureChunk = useCallback((cx: bigint, cy: bigint) => {
+  const ensureChunk = useCallback((cx: bigint, cy: bigint, direction: { x: number; y: number } = { x: 0, y: 0 }) => {
     const key = `${cx},${cy}`;
     if (key === lastChunk.current) return;
     lastChunk.current = key;
-    manager.ensureAround(cx, cy);
-    setPending(manager.pending.size);
-    setStatus(manager.pending.size ? "loading" : "ready");
+    manager.ensureAround(cx, cy, direction);
+    setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
+    setPending(manager.pendingCount);
+    setStatus(manager.pendingCount ? "loading" : "ready");
   }, [manager]);
 
   const applySeed = useCallback((nextSeed: string[][]) => {
@@ -187,7 +200,7 @@ export default function App() {
     setChunks([]);
     lastChunk.current = "0,0";
     manager.ensureAround(0n, 0n);
-    setPending(manager.pending.size);
+    setPending(manager.pendingCount);
     setStatus("loading");
   }, [manager]);
 
@@ -197,7 +210,7 @@ export default function App() {
     const cy = BigInt(stats.chunkY);
     manager.ensureAround(cx, cy);
     setChunks([]);
-    setPending(manager.pending.size);
+    setPending(manager.pendingCount);
     setStatus("loading");
   }, [manager, stats.chunkX, stats.chunkY]);
 
@@ -214,7 +227,7 @@ export default function App() {
     manager.teleportTo(cx, cy);
     setChunks([]);
     setStatus("loading");
-    setPending(manager.pending.size);
+    setPending(manager.pendingCount);
   }, [manager, seedKey]);
 
   const applySettings = useCallback((next: GameSettings) => {
@@ -237,7 +250,7 @@ export default function App() {
     setExploration(next);
   }, [seedKey]);
 
-  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number }) => {
+  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
     const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const offsetX = state.localX - Math.floor(state.localX);
@@ -267,6 +280,12 @@ export default function App() {
         fps: state.fps,
         health: state.health,
         stamina: state.stamina,
+        frameTimeMs: state.frameTimeMs,
+        frameTimeMaxMs: state.frameTimeMaxMs,
+        drawCalls: state.drawCalls,
+        triangles: state.triangles,
+        geometries: state.geometries,
+        textures: state.textures,
       });
     }
     if (now - lastExplorationAt.current < 1500) return;
@@ -322,7 +341,7 @@ export default function App() {
         runtimeQuality={runtimeQuality}
         seed={seed}
         performance={performanceStats}
-        developer={{ worldX: stats.worldX, worldY: stats.worldY, chunkX: stats.chunkX, chunkY: stats.chunkY, originX: stats.originX, originY: stats.originY, loadedChunks: chunks.length, pendingChunks: pending, cacheSize: manager.generated.size, status, tests }}
+        developer={{ worldX: stats.worldX, worldY: stats.worldY, chunkX: stats.chunkX, chunkY: stats.chunkY, originX: stats.originX, originY: stats.originY, loadedChunks: chunks.length, pendingChunks: pending, inFlightChunks: manager.inFlightCount, queuedChunks: manager.queuedCount, cacheSize: manager.generated.size, status, tests }}
         exploration={exploration}
         debug={debug}
         debugCollision={debugCollision}

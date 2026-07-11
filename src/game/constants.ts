@@ -9,6 +9,7 @@ export const MAX_GENERATED_CHUNKS = 160;
 export const MAX_RENDERED_CHUNKS = 96;
 export const MAX_VISITED_CHUNKS = 4096;
 export const MAX_SEEN_DECOR_KEYS = 50_000;
+export const MAX_RANDOM_CACHE = 8192;
 export const RANDOM_MASK_53 = (1n << 53n) - 1n;
 
 export const DEFAULT_SEED = [
