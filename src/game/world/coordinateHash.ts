@@ -1,4 +1,4 @@
-import { P, RANDOM_MASK_53 } from "../constants";
+import { LIMB_BITS, LIMB_MASK, P, RANDOM_MASK_53 } from "../constants";
 import { mod } from "./fieldMath";
 
 const C1 = 0x9e3779b97f4a7c15n % P;
@@ -27,8 +27,8 @@ export function foldBigInt(valueInput: bigint, salt: bigint): bigint {
   let h = mix61(salt + C1);
   let counter = 1n;
   while (true) {
-    const limb = value & P;
-    value >>= 61n;
+    const limb = value & LIMB_MASK;
+    value >>= LIMB_BITS;
     h = mix61(h + limb + counter * C4);
     counter += 1n;
     if (value === 0n) return h;

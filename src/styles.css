@@ -142,6 +142,34 @@ button:hover {
   border: 1px solid rgba(16, 32, 42, 0.22);
 }
 
+.mobileActions {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  z-index: 12;
+  display: none;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.mobileActionButton {
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border-radius: 50%;
+  touch-action: none;
+  user-select: none;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.jumpAction {
+  width: 68px;
+  height: 68px;
+  font-size: 28px;
+}
+
 .modal {
   position: fixed;
   inset: 0;
@@ -273,6 +301,12 @@ button:hover {
 
   .sidePanel h2 {
     grid-column: 1 / -1;
+  }
+}
+
+@media (pointer: coarse) {
+  .mobileActions {
+    display: flex;
   }
 }
 

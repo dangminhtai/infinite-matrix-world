@@ -5,6 +5,7 @@ const INTERACTIVE_SELECTOR = "button,input,select,textarea,.modal,.hud,.sidePane
 export function usePointerControls(onRotate: (dx: number, dy: number) => void, onZoom: (amount: number) => void, onClickMove: (x: number, y: number) => void) {
   useEffect(() => {
     let draggingRight = false;
+    let cameraPointerId: number | null = null;
     let lastX = 0;
     let lastY = 0;
     let downX = 0;
@@ -24,7 +25,8 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
       downY = e.clientY;
       lastX = e.clientX;
       lastY = e.clientY;
-      draggingRight = e.button === 2 || e.clientX > window.innerWidth / 2;
+      draggingRight = e.pointerType === "touch" ? e.clientX > window.innerWidth / 2 : e.button === 2;
+      if (draggingRight) cameraPointerId = e.pointerId;
     };
     const move = (e: PointerEvent) => {
       if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -34,7 +36,7 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
         lastPinch = pinch;
         return;
       }
-      if (!draggingRight || e.buttons === 0) return;
+      if (!draggingRight || cameraPointerId !== e.pointerId || (e.pointerType === "mouse" && e.buttons === 0)) return;
       onRotate(e.clientX - lastX, e.clientY - lastY);
       lastX = e.clientX;
       lastY = e.clientY;
@@ -42,24 +44,34 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
     const up = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
       lastPinch = pinchDistance();
+      const wasCameraDrag = cameraPointerId === e.pointerId;
       if (e.target instanceof HTMLElement && e.target.closest(INTERACTIVE_SELECTOR)) {
         draggingRight = false;
+        cameraPointerId = null;
         return;
       }
       const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (!draggingRight && e.button === 0 && moved < 8) onClickMove(e.clientX, e.clientY);
-      draggingRight = false;
+      if (!wasCameraDrag && e.button === 0 && moved < 8) onClickMove(e.clientX, e.clientY);
+      if (wasCameraDrag) {
+        draggingRight = false;
+        cameraPointerId = null;
+      }
     };
-    const wheel = (e: WheelEvent) => onZoom(e.deltaY);
+    const wheel = (e: WheelEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest(INTERACTIVE_SELECTOR)) return;
+      onZoom(e.deltaY);
+    };
     const context = (e: MouseEvent) => e.preventDefault();
     const reset = () => {
       draggingRight = false;
+      cameraPointerId = null;
       lastPinch = 0;
       pointers.clear();
     };
     window.addEventListener("pointerdown", down);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", reset);
     window.addEventListener("wheel", wheel, { passive: true });
     window.addEventListener("contextmenu", context);
     window.addEventListener("blur", reset);
@@ -68,6 +80,7 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
       window.removeEventListener("pointerdown", down);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", reset);
       window.removeEventListener("wheel", wheel);
       window.removeEventListener("contextmenu", context);
       window.removeEventListener("blur", reset);

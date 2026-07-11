@@ -10,22 +10,27 @@ export class ChunkManager {
   readonly generated = new LruCache<string, ChunkPayload>(MAX_GENERATED_CHUNKS);
   readonly rendered = new LruCache<string, ChunkPayload>(MAX_RENDERED_CHUNKS);
   readonly pending = new Set<string>();
-  readonly queue: string[] = [];
   private wantedKeys = new Set<string>();
   private readonly worker = new Worker(new URL("../workers/chunk.worker.ts", import.meta.url), { type: "module" });
   private requestId = 1;
+  private generationId = 0;
+  private readonly requestKeys = new Map<number, string>();
   private readonly listeners = new Set<Listener>();
   private readonly errorListeners = new Set<ErrorListener>();
 
   constructor(private seed: string[][]) {
     this.worker.onmessage = (event: MessageEvent<ChunkWorkerResponse>) => {
       const msg = event.data;
+      if (msg.generationId !== this.generationId) return;
+      if (msg.type === "cleared") return;
+      const pendingKey = this.requestKeys.get(msg.requestId);
+      this.requestKeys.delete(msg.requestId);
+      if (pendingKey) this.pending.delete(pendingKey);
       if (msg.type === "error") {
         this.errorListeners.forEach((listener) => listener(`${msg.message}\n${msg.stack ?? ""}`));
         return;
       }
       const key = this.key(BigInt(msg.cx), BigInt(msg.cy));
-      this.pending.delete(key);
       this.generated.set(key, msg.payload);
       if (this.wantedKeys.has(key)) {
         this.rendered.set(key, msg.payload);
@@ -33,6 +38,8 @@ export class ChunkManager {
       this.listeners.forEach((listener) => listener(msg.payload));
     };
     this.worker.onerror = (event) => {
+      this.pending.clear();
+      this.requestKeys.clear();
       this.errorListeners.forEach((listener) => listener(event.message));
     };
   }
@@ -53,11 +60,18 @@ export class ChunkManager {
   }
 
   clear(): void {
+    this.beginGeneration();
     this.generated.clear();
     this.rendered.clear();
-    this.pending.clear();
-    this.queue.length = 0;
     this.wantedKeys.clear();
+    this.worker.postMessage({ type: "clear", requestId: this.requestId++, generationId: this.generationId });
+  }
+
+  teleportTo(cx: bigint, cy: bigint): void {
+    this.beginGeneration();
+    this.rendered.clear();
+    this.wantedKeys.clear();
+    this.ensureAround(cx, cy);
   }
 
   dispose(): void {
@@ -94,8 +108,15 @@ export class ChunkManager {
       return;
     }
     if (this.pending.has(key)) return;
+    const requestId = this.requestId++;
     this.pending.add(key);
-    this.queue.push(key);
-    this.worker.postMessage({ type: "generateChunk", requestId: this.requestId++, cx: cx.toString(), cy: cy.toString(), seed: this.seed });
+    this.requestKeys.set(requestId, key);
+    this.worker.postMessage({ type: "generateChunk", requestId, generationId: this.generationId, cx: cx.toString(), cy: cy.toString(), seed: this.seed });
+  }
+
+  private beginGeneration(): void {
+    this.generationId += 1;
+    this.pending.clear();
+    this.requestKeys.clear();
   }
 }

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_SEED } from "./game/constants";
+import { DEFAULT_SEED, MAX_SEEN_DECOR_KEYS, MAX_VISITED_CHUNKS } from "./game/constants";
 import { GameCanvas } from "./game/GameCanvas";
 import { ChunkManager } from "./game/world/chunkManager";
-import { selfTest } from "./game/world/selfTest";
 import type { ChunkPayload, WorkerStatus } from "./game/types";
 import { HUD } from "./ui/HUD";
 import { SeedEditor } from "./ui/SeedEditor";
@@ -37,6 +36,17 @@ function defaultSeedStrings(): string[][] {
     }
   }
   return DEFAULT_SEED.map((row) => row.map((value) => value.toString()));
+}
+
+function addBounded(set: Set<string>, value: string, maxSize: number): boolean {
+  if (set.has(value)) return false;
+  set.add(value);
+  while (set.size > maxSize) {
+    const oldest = set.values().next().value as string | undefined;
+    if (oldest === undefined) break;
+    set.delete(oldest);
+  }
+  return true;
 }
 
 export default function App() {
@@ -86,13 +96,14 @@ export default function App() {
   const performanceStats = useMemo(() => collectPerformanceStats(chunks, stats.fps), [chunks, stats.fps]);
 
   useEffect(() => {
-    try {
+    if (!import.meta.env.DEV) return;
+    void import("./game/world/selfTest").then(({ selfTest }) => {
       setTests(selfTest());
-    } catch (err) {
+    }).catch((err: unknown) => {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e.stack ?? e.message);
       setStatus("error");
-    }
+    });
   }, []);
 
   useEffect(() => {
@@ -187,7 +198,7 @@ export default function App() {
     lastTile.current = { x: worldTileX, y: worldTileY, offsetX, offsetY };
     setExploration((current) => {
       const visitedChunks = new Set(current.visitedChunks);
-      visitedChunks.add(`${chunkX},${chunkY}`);
+      addBounded(visitedChunks, `${chunkX},${chunkY}`, MAX_VISITED_CHUNKS);
       const biomes = new Set(current.visitedBiomes);
       const currentChunk = chunks.find((chunk) => chunk.cx === chunkX.toString() && chunk.cy === chunkY.toString());
       currentChunk?.biomes.forEach((biome) => biomes.add(BIOME_NAMES[biome] ?? "grass"));
@@ -195,9 +206,9 @@ export default function App() {
       let seenRocks = current.seenRocks;
       let seenFlowers = current.seenFlowers;
       for (const chunk of chunks) {
-        for (const tree of chunk.trees) if (!seenDecorKeys.current.has(tree.id)) { seenDecorKeys.current.add(tree.id); seenTrees += 1; }
-        for (const rock of chunk.rocks) if (!seenDecorKeys.current.has(rock.id)) { seenDecorKeys.current.add(rock.id); seenRocks += 1; }
-        for (const flower of chunk.flowers) if (!seenDecorKeys.current.has(flower.id)) { seenDecorKeys.current.add(flower.id); seenFlowers += 1; }
+        for (const tree of chunk.trees) if (addBounded(seenDecorKeys.current, tree.id, MAX_SEEN_DECOR_KEYS)) seenTrees += 1;
+        for (const rock of chunk.rocks) if (addBounded(seenDecorKeys.current, rock.id, MAX_SEEN_DECOR_KEYS)) seenRocks += 1;
+        for (const flower of chunk.flowers) if (addBounded(seenDecorKeys.current, flower.id, MAX_SEEN_DECOR_KEYS)) seenFlowers += 1;
       }
       const distanceAdd = previous ? Math.hypot(Number(worldTileX - previous.x) + offsetX - previous.offsetX, Number(worldTileY - previous.y) + offsetY - previous.offsetY) : 0;
       const farthest = Math.hypot(Number(worldTileX), Number(worldTileY));
@@ -252,7 +263,10 @@ export default function App() {
           localStorage.setItem(`ihmw.exploration.${seedKey}`, JSON.stringify(next));
           return next;
         });
-        manager.ensureAround(x >= 0n ? x / 16n : (x - 15n) / 16n, y >= 0n ? y / 16n : (y - 15n) / 16n);
+        const cx = x >= 0n ? x / 16n : (x - 15n) / 16n;
+        const cy = y >= 0n ? y / 16n : (y - 15n) / 16n;
+        lastChunk.current = `${cx},${cy}`;
+        manager.teleportTo(cx, cy);
         setStatus("loading");
         setPending(manager.pending.size);
       }} />}

@@ -1,13 +1,13 @@
 import { generateChunk } from "../world/chunkGenerator";
 import { HybridMatrixWorld } from "../world/hybridWorld";
-import { matrixFromStrings, matrixToStrings } from "../world/matrix";
+import { matrixFromStrings } from "../world/matrix";
 import type { ChunkWorkerRequest, ChunkWorkerResponse } from "./workerMessages";
 
 let world: HybridMatrixWorld | null = null;
 let seedKey = "";
 
 function transferChunk(response: ChunkWorkerResponse): void {
-  if (response.type === "error") {
+  if (response.type !== "chunkGenerated") {
     self.postMessage(response);
     return;
   }
@@ -37,17 +37,15 @@ self.onmessage = (event: MessageEvent<ChunkWorkerRequest>) => {
   try {
     if (request.type === "clear") {
       world?.clearCaches();
-      const payload = generateChunk(getWorld(matrixToStrings(world?.seed ?? [[1n, 3n], [2n, 4n]])), 0n, 0n);
-      const response = { type: "chunkGenerated", requestId: request.requestId, cx: "0", cy: "0", payload } satisfies ChunkWorkerResponse;
-      transferChunk(response);
+      self.postMessage({ type: "cleared", requestId: request.requestId, generationId: request.generationId } satisfies ChunkWorkerResponse);
       return;
     }
     const activeWorld = getWorld(request.seed);
     const payload = generateChunk(activeWorld, BigInt(request.cx), BigInt(request.cy));
-    const response = { type: "chunkGenerated", requestId: request.requestId, cx: request.cx, cy: request.cy, payload } satisfies ChunkWorkerResponse;
+    const response = { type: "chunkGenerated", requestId: request.requestId, generationId: request.generationId, cx: request.cx, cy: request.cy, payload } satisfies ChunkWorkerResponse;
     transferChunk(response);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    self.postMessage({ type: "error", requestId: request.requestId, message: err.message, stack: err.stack } satisfies ChunkWorkerResponse);
+    self.postMessage({ type: "error", requestId: request.requestId, generationId: request.generationId, message: err.message, stack: err.stack } satisfies ChunkWorkerResponse);
   }
 };

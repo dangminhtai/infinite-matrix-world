@@ -1,8 +1,6 @@
 export type MoveInput = { x: number; y: number };
 
-export function normalizeInput(input: MoveInput): MoveInput {
-  const len = Math.hypot(input.x, input.y);
-  if (len <= 1e-5) return { x: 0, y: 0 };
-  const scale = Math.min(1, len) / len;
-  return { x: input.x * scale, y: input.y * scale };
+export function dampAngle(current: number, target: number, damping: number, delta: number): number {
+  const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + difference * (1 - Math.exp(-damping * delta));
 }

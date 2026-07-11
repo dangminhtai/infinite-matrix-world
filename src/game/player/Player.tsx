@@ -13,7 +13,9 @@ export function Player({ state }: { state: MutableRefObject<GameState> }) {
       group.current.position.set(state.current.localX, state.current.height, state.current.localZ);
       group.current.rotation.y = state.current.yaw;
     }
-    const speed = Math.sin(clock.elapsedTime * 8) * 0.35;
+    const moving = state.current.movementState === "walk" || state.current.movementState === "run";
+    const frequency = state.current.movementState === "run" ? 12 : 8;
+    const speed = moving ? Math.sin(clock.elapsedTime * frequency) * 0.35 : 0;
     if (leftLeg.current) leftLeg.current.rotation.x = speed;
     if (rightLeg.current) rightLeg.current.rotation.x = -speed;
   });

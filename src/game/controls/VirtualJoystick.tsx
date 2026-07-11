@@ -50,3 +50,32 @@ export function VirtualJoystick({ onChange }: { onChange: (input: MoveInput) => 
     </div>
   );
 }
+
+export function MobileActionButtons({
+  onJump,
+  onRunChange,
+}: {
+  onJump: () => void;
+  onRunChange: (running: boolean) => void;
+}) {
+  return (
+    <div className="mobileActions">
+      <button
+        className="mobileActionButton runAction"
+        type="button"
+        title="Chạy"
+        aria-label="Chạy"
+        onPointerDown={(event) => { event.stopPropagation(); onRunChange(true); }}
+        onPointerUp={(event) => { event.stopPropagation(); onRunChange(false); }}
+        onPointerCancel={() => onRunChange(false)}
+      >RUN</button>
+      <button
+        className="mobileActionButton jumpAction"
+        type="button"
+        title="Nhảy"
+        aria-label="Nhảy"
+        onPointerDown={(event) => { event.stopPropagation(); onJump(); }}
+      >↑</button>
+    </div>
+  );
+}
