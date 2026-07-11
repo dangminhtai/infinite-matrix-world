@@ -14,6 +14,8 @@ Game khám phá thế giới 3D sinh thủ tục trên trình duyệt, xây dự
 - Vật phẩm, rương, điểm hồi phục và quái sinh xác định theo seed/chunk.
 - Tấn công thường, kỹ năng có hồi chiêu, AI quái gần và túi đồ có stack.
 - Minimap, thống kê khám phá, thông số renderer và chất lượng đồ họa tự động.
+- Bản đồ toàn màn hình mở bằng `M`, có pan/zoom, fog khám phá và marker quái.
+- Chọn quái trên bản đồ để theo dõi hướng đi và khoảng cách theo mét.
 - Giao diện responsive cho desktop, màn hình cảm ứng và thiết bị di động.
 - Seed editor, teleport `BigInt`, xóa cache và công cụ developer.
 
@@ -46,6 +48,7 @@ Các phím gameplay có thể đổi trong `Settings > Controls`.
 - Vuốt vùng chơi để xoay camera; pinch để zoom.
 - Các nút `RUN`, `E`, `ATK`, `SKL` và nút nhảy nằm ở cụm điều khiển bên phải.
 - `RUN` được giữ để chạy hoặc bơi nhanh.
+- Chạm minimap để mở bản đồ thế giới.
 
 ## Cài đặt và chạy
 
@@ -84,7 +87,7 @@ src/
 │   ├── player/       Va chạm, chuyển động và model nhân vật
 │   ├── rendering/    Terrain, nước, cây, đá, hoa, cỏ và bầu trời
 │   ├── spawn/        Sinh entity xác định
-│   ├── workers/      Web Worker sinh chunk
+│   ├── workers/      Web Worker sinh chunk 3D và tile bản đồ theo viewport
 │   └── world/        Ma trận, recurrence, noise, chunk và self-test
 └── ui/               HUD, minimap, settings, inventory và thống kê
 ```

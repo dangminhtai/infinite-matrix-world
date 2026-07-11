@@ -113,6 +113,36 @@ button:hover {
   font-weight: 650;
 }
 
+.trackedTarget {
+  position: absolute;
+  left: 18px;
+  top: 94px;
+  min-width: 190px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 9px 9px 11px;
+  border-left: 3px solid #e95665;
+  background: rgba(10, 20, 25, 0.8);
+  color: #fff;
+}
+
+.movementBadge ~ .trackedTarget { top: 130px; }
+
+.trackedTarget > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e95665;
+  box-shadow: 0 0 0 3px rgba(233, 86, 101, 0.2);
+}
+
+.trackedTarget div { display: grid; gap: 2px; }
+.trackedTarget span { color: #f4a7af; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.trackedTarget strong { font-size: 13px; }
+.trackedTarget button { width: 28px; height: 28px; padding: 0; pointer-events: auto; background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.18); }
+
 .interactionPrompt kbd {
   min-width: 24px;
   padding: 2px 5px;
@@ -487,9 +517,139 @@ button:hover {
   height: 172px;
   border-radius: 50%;
   z-index: 11;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
   box-shadow: 0 10px 28px rgba(16, 32, 42, 0.22);
 }
+
+.worldMapOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  overflow: hidden;
+  background: #17242a;
+  color: #fff;
+}
+
+.worldMapCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.worldMapCanvas:active { cursor: grabbing; }
+
+.worldMapHeader {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  right: 18px;
+  top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.worldMapHeader > div:first-child {
+  display: grid;
+  gap: 3px;
+  max-width: min(580px, 60vw);
+  padding: 9px 12px;
+  border-left: 3px solid #7bd6d0;
+  background: rgba(10, 20, 25, 0.82);
+}
+
+.worldMapHeader span { color: #9be5df; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.worldMapHeader strong { overflow-wrap: anywhere; font-size: 13px; }
+.worldMapHeader small { color: #b7c4c9; font-size: 10px; }
+
+.worldMapTools {
+  display: flex;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.worldMapTools button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: rgba(10, 20, 25, 0.82);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #fff;
+  font-size: 20px;
+}
+
+.worldMapZoomControl {
+  position: absolute;
+  z-index: 2;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 20, 25, 0.82);
+}
+
+.worldMapZoomControl button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: #203139;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 20px;
+}
+
+.worldMapZoomControl button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.worldMapZoomControl input[type="range"] {
+  width: 24px;
+  height: 190px;
+  margin: 0;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  accent-color: #7bd6d0;
+  cursor: pointer;
+}
+
+.worldMapZoomControl input[type="range"]:disabled { opacity: 0.45; cursor: default; }
+
+.worldMapLegend {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 11px;
+  background: rgba(10, 20, 25, 0.82);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.worldMapLegend span { display: flex; align-items: center; gap: 6px; }
+.worldMapLegend i { width: 9px; height: 9px; border-radius: 50%; }
+.worldMapLegend .enemyLegend { background: #e95665; }
+.worldMapLegend .playerLegend { background: #fff; }
+.worldMapLegend small { color: #b7c4c9; }
 
 .sidePanel {
   position: fixed;
@@ -665,6 +825,9 @@ button:hover {
     left: 10px;
   }
 
+  .trackedTarget { left: 10px; top: 82px; min-width: 176px; }
+  .movementBadge ~ .trackedTarget { top: 116px; }
+
   .settingsButton { top: 120px; right: 10px; bottom: auto; }
   .inventoryButton { top: 120px; right: 62px; bottom: auto; }
   .interactionPrompt { bottom: 142px; }
@@ -675,6 +838,32 @@ button:hover {
   .inventoryOverlay { padding: 10px; }
   .inventoryPanel { max-height: calc(100vh - 20px); }
   .inventoryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .worldMapHeader { left: 10px; right: 10px; top: 10px; align-items: start; }
+  .worldMapHeader > div:first-child { max-width: calc(100vw - 110px); }
+  .worldMapTools { gap: 5px; }
+  .worldMapTools button { width: 38px; height: 38px; }
+  .worldMapZoomControl {
+    left: 50%;
+    right: auto;
+    top: auto;
+    bottom: 84px;
+    transform: translateX(-50%);
+    width: min(310px, calc(100vw - 20px));
+    min-height: 52px;
+    flex-direction: row-reverse;
+    justify-content: center;
+    padding: 5px 7px;
+  }
+  .worldMapZoomControl button { width: 44px; height: 44px; flex: 0 0 44px; }
+  .worldMapZoomControl input[type="range"] {
+    width: min(190px, calc(100vw - 138px));
+    height: 24px;
+    writing-mode: horizontal-tb;
+    direction: ltr;
+  }
+  .worldMapLegend { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; gap: 8px 12px; }
+  .worldMapLegend small { flex-basis: 100%; }
 
   .settingsPanel {
     width: 100%;

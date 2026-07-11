@@ -4,6 +4,8 @@ import { HybridMatrixWorld, floorDiv } from "./hybridWorld";
 import { matMul, matPow } from "./matrix";
 import { generateChunk } from "./chunkGenerator";
 import { QualityManager } from "../core/QualityManager";
+import { generateMapTile } from "../map/mapTile";
+import { calculateMapMinScale, MAP_ZOOM_MAX_SCALE, zoomLevelToScale } from "../map/mapZoom";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -63,6 +65,19 @@ export function selfTest(): string[] {
     }
   }
   passed.push("Chunk seam");
+
+  const mapTile = generateMapTile(world, 0n, 0n);
+  assert(mapTile.biomes.length === chunkA.biomes.length, "map tile size");
+  assert(mapTile.biomes.every((biome, index) => biome === chunkA.biomes[index]), "map tile matches world chunk");
+  passed.push("Map tile");
+
+  const desktopMinScale = calculateMapMinScale(1920, 1080);
+  const fourKMinScale = calculateMapMinScale(3840, 2160);
+  assert(fourKMinScale > desktopMinScale, "map zoom tightens for larger viewport");
+  assert(zoomLevelToScale(0, desktopMinScale) === desktopMinScale, "map zoom minimum");
+  assert(zoomLevelToScale(100, desktopMinScale) === MAP_ZOOM_MAX_SCALE, "map zoom maximum");
+  assert(zoomLevelToScale(50, desktopMinScale) > desktopMinScale, "map zoom midpoint");
+  passed.push("Map zoom");
 
   for (let i = 0; i < MAX_CHUNK_STATES + 20; i += 1) world.chunkState(BigInt(i * 1000), BigInt(-i * 977));
   assert(world.chunkCache.size <= MAX_CHUNK_STATES, "cache bound");

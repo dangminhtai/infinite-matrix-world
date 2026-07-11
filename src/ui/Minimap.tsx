@@ -93,6 +93,24 @@ export function Minimap({
       ctx.arc(sx, sy, enemy.id === target?.id ? 4.5 : 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
+    if (target) {
+      const targetX = (Number(BigInt(target.worldX) - px) + target.offsetX - offsetX) * scale;
+      const targetY = (Number(BigInt(target.worldY) - py) + target.offsetY - offsetY) * scale;
+      const targetDistance = Math.hypot(targetX, targetY);
+      if (targetDistance > 0.001) {
+        const radius = cssSize / 2 - 14;
+        const factor = Math.min(1, radius / targetDistance);
+        const markerX = cssSize / 2 + targetX * factor;
+        const markerY = cssSize / 2 + targetY * factor;
+        ctx.fillStyle = "#ffd45c";
+        ctx.strokeStyle = "rgba(22, 28, 31, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(markerX, markerY, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
     ctx.restore();
 
     ctx.save();

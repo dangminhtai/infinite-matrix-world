@@ -1,17 +1,41 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CHUNK_SIZE } from "../game/constants";
+import type { MapTile } from "../game/map/mapTile";
 import type { MapEnemy, TrackedTarget } from "../game/map/types";
+import { calculateMapMinScale, clampZoomLevel, MAP_ZOOM_DEFAULT_LEVEL, MAP_ZOOM_MAX_LEVEL, MAP_ZOOM_MAX_SCALE, MAP_ZOOM_MIN_LEVEL, MAX_VISIBLE_MAP_TILES, scaleRatioToZoomDelta, zoomLevelToScale } from "../game/map/mapZoom";
 import type { BiomeId, ChunkPayload } from "../game/types";
 
 const colors: Record<BiomeId, string> = { 0: "#4a9ac7", 1: "#777f83", 2: "#28744a", 3: "#80664e", 4: "#c7b36f", 5: "#65a958" };
-const MIN_SCALE = 0.45;
-const MAX_SCALE = 8;
+const MAX_MAP_TILES = 512;
+const MAX_IN_FLIGHT = 2;
+const ZOOM_BUTTON_STEP = 8;
+const sharedTileCaches = new Map<string, Map<string, MapTile>>();
 
 function abs(value: bigint): bigint {
   return value < 0n ? -value : value;
 }
 
-export function WorldMap({ chunks, visitedChunks, playerX, playerY, playerOffsetX, playerOffsetY, playerYaw, enemies, target, onSelectTarget, onClose }: {
+function floorDiv(value: bigint, divisor: bigint): bigint {
+  let quotient = value / divisor;
+  if (value < 0n && value % divisor !== 0n) quotient -= 1n;
+  return quotient;
+}
+
+function tileKey(cx: string | bigint, cy: string | bigint): string {
+  return `${cx},${cy}`;
+}
+
+function getSeedCache(seedKey: string): Map<string, MapTile> {
+  const existing = sharedTileCaches.get(seedKey);
+  if (existing) return existing;
+  const cache = new Map<string, MapTile>();
+  sharedTileCaches.set(seedKey, cache);
+  while (sharedTileCaches.size > 3) sharedTileCaches.delete(sharedTileCaches.keys().next().value as string);
+  return cache;
+}
+
+export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, playerOffsetX, playerOffsetY, playerYaw, enemies, target, onSelectTarget, onClose }: {
+  seed: string[][];
   chunks: ChunkPayload[];
   visitedChunks: string[];
   playerX: string;
@@ -24,12 +48,73 @@ export function WorldMap({ chunks, visitedChunks, playerX, playerY, playerOffset
   onSelectTarget: (enemy: MapEnemy) => void;
   onClose: () => void;
 }) {
+  const seedKey = JSON.stringify(seed);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const center = useRef({ x: BigInt(playerX), y: BigInt(playerY), residualX: 0, residualY: 0 });
   const drag = useRef({ pointerId: -1, x: 0, y: 0, moved: false });
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDistance = useRef(0);
   const enemyHits = useRef<Array<{ enemy: MapEnemy; x: number; y: number }>>([]);
-  const [scale, setScale] = useState(2.4);
+  const cache = useRef(getSeedCache(seedKey));
+  const workerRef = useRef<Worker | null>(null);
+  const queue = useRef<Array<{ key: string; cx: string; cy: string }>>([]);
+  const inFlight = useRef(new Map<number, string>());
+  const wanted = useRef(new Set<string>());
+  const requestId = useRef(1);
+  const pumpRef = useRef<() => void>(() => undefined);
+  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [zoomLevel, setZoomLevel] = useState(MAP_ZOOM_DEFAULT_LEVEL);
   const [revision, setRevision] = useState(0);
+  const [pendingTiles, setPendingTiles] = useState(0);
+  const minScale = calculateMapMinScale(viewport.width, viewport.height);
+  const scale = zoomLevelToScale(zoomLevel, minScale);
+  const zoomLocked = minScale >= MAP_ZOOM_MAX_SCALE;
+  const atMinZoom = zoomLocked || zoomLevel <= MAP_ZOOM_MIN_LEVEL;
+  const atMaxZoom = zoomLocked || zoomLevel >= MAP_ZOOM_MAX_LEVEL;
+
+  const rememberTile = useCallback((tile: MapTile) => {
+    const key = tileKey(tile.cx, tile.cy);
+    cache.current.delete(key);
+    cache.current.set(key, tile);
+    while (cache.current.size > MAX_MAP_TILES) cache.current.delete(cache.current.keys().next().value as string);
+  }, []);
+
+  useEffect(() => {
+    for (const chunk of chunks) rememberTile({ cx: chunk.cx, cy: chunk.cy, biomes: chunk.biomes });
+    setRevision((value) => value + 1);
+  }, [chunks, rememberTile]);
+
+  useEffect(() => {
+    const worker = new Worker(new URL("../game/workers/map.worker.ts", import.meta.url), { type: "module" });
+    workerRef.current = worker;
+    const updatePending = () => setPendingTiles(queue.current.length + inFlight.current.size);
+    pumpRef.current = () => {
+      while (workerRef.current && inFlight.current.size < MAX_IN_FLIGHT && queue.current.length) {
+        const job = queue.current.shift();
+        if (!job || cache.current.has(job.key)) continue;
+        const id = requestId.current++;
+        inFlight.current.set(id, job.key);
+        workerRef.current.postMessage({ requestId: id, seed, cx: job.cx, cy: job.cy });
+      }
+      updatePending();
+    };
+    worker.onmessage = (event: MessageEvent<{ requestId: number; tile?: MapTile; error?: string }>) => {
+      const key = inFlight.current.get(event.data.requestId);
+      inFlight.current.delete(event.data.requestId);
+      if (event.data.tile && key && wanted.current.has(key)) {
+        rememberTile(event.data.tile);
+        setRevision((value) => value + 1);
+      }
+      pumpRef.current();
+    };
+    pumpRef.current();
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+      queue.current = [];
+      inFlight.current.clear();
+    };
+  }, [rememberTile, seed, seedKey]);
 
   const centerOnPlayer = useCallback(() => {
     center.current = { x: BigInt(playerX), y: BigInt(playerY), residualX: 0, residualY: 0 };
@@ -54,6 +139,42 @@ export function WorldMap({ chunks, visitedChunks, playerX, playerY, playerOffset
   }, [scale]);
 
   useEffect(() => {
+    const redraw = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+      setRevision((value) => value + 1);
+    };
+    window.addEventListener("resize", redraw);
+    return () => window.removeEventListener("resize", redraw);
+  }, []);
+
+  useEffect(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const view = center.current;
+    const halfTilesX = BigInt(Math.ceil(rect.width / scale / 2) + CHUNK_SIZE);
+    const halfTilesY = BigInt(Math.ceil(rect.height / scale / 2) + CHUNK_SIZE);
+    const minCx = floorDiv(view.x - halfTilesX, BigInt(CHUNK_SIZE));
+    const maxCx = floorDiv(view.x + halfTilesX, BigInt(CHUNK_SIZE));
+    const minCy = floorDiv(view.y - halfTilesY, BigInt(CHUNK_SIZE));
+    const maxCy = floorDiv(view.y + halfTilesY, BigInt(CHUNK_SIZE));
+    const centerCx = floorDiv(view.x, BigInt(CHUNK_SIZE));
+    const centerCy = floorDiv(view.y, BigInt(CHUNK_SIZE));
+    const jobs: Array<{ key: string; cx: string; cy: string; distance: number }> = [];
+    const nextWanted = new Set<string>();
+    for (let cy = minCy; cy <= maxCy; cy += 1n) for (let cx = minCx; cx <= maxCx; cx += 1n) {
+      const key = tileKey(cx, cy);
+      nextWanted.add(key);
+      if (!cache.current.has(key) && ![...inFlight.current.values()].includes(key)) {
+        jobs.push({ key, cx: cx.toString(), cy: cy.toString(), distance: Math.max(Math.abs(Number(cx - centerCx)), Math.abs(Number(cy - centerCy))) });
+      }
+    }
+    wanted.current = nextWanted;
+    jobs.sort((a, b) => a.distance - b.distance);
+    queue.current = jobs.slice(0, MAX_VISIBLE_MAP_TILES);
+    pumpRef.current();
+  }, [revision, scale]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -68,35 +189,32 @@ export function WorldMap({ chunks, visitedChunks, playerX, playerY, playerOffset
     ctx.fillStyle = "#17242a";
     ctx.fillRect(0, 0, width, height);
     const view = center.current;
+    const visited = new Set(visitedChunks);
     const visibleTiles = BigInt(Math.ceil(Math.max(width, height) / scale) + CHUNK_SIZE * 2);
     const project = (x: bigint, y: bigint, ox = 0, oy = 0) => ({
       x: width / 2 + Number(x - view.x) * scale + ox * scale + view.residualX,
       y: height / 2 + Number(y - view.y) * scale + oy * scale + view.residualY,
     });
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
-    for (const key of visitedChunks) {
-      const [cxText, cyText] = key.split(",");
-      const chunkX = BigInt(cxText) * BigInt(CHUNK_SIZE);
-      const chunkY = BigInt(cyText) * BigInt(CHUNK_SIZE);
-      if (abs(chunkX - view.x) > visibleTiles || abs(chunkY - view.y) > visibleTiles) continue;
-      const point = project(chunkX, chunkY);
-      ctx.fillRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
-    }
-
-    for (const chunk of chunks) {
-      const chunkX = BigInt(chunk.cx) * BigInt(CHUNK_SIZE);
-      const chunkY = BigInt(chunk.cy) * BigInt(CHUNK_SIZE);
+    for (const tile of cache.current.values()) {
+      const chunkX = BigInt(tile.cx) * BigInt(CHUNK_SIZE);
+      const chunkY = BigInt(tile.cy) * BigInt(CHUNK_SIZE);
       if (abs(chunkX - view.x) > visibleTiles || abs(chunkY - view.y) > visibleTiles) continue;
       for (let y = 0; y < CHUNK_SIZE; y += 1) for (let x = 0; x < CHUNK_SIZE; x += 1) {
         const point = project(chunkX + BigInt(x), chunkY + BigInt(y));
-        ctx.fillStyle = colors[(chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId];
+        ctx.fillStyle = colors[(tile.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId];
         ctx.fillRect(point.x, point.y, Math.max(1, scale + 0.35), Math.max(1, scale + 0.35));
       }
       const point = project(chunkX, chunkY);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
+      if (scale >= 1) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.13)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
+      }
+      if (!visited.has(tileKey(tile.cx, tile.cy))) {
+        ctx.fillStyle = "rgba(7, 13, 16, 0.3)";
+        ctx.fillRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
+      }
     }
 
     enemyHits.current = [];
@@ -121,6 +239,8 @@ export function WorldMap({ chunks, visitedChunks, playerX, playerY, playerOffset
     ctx.translate(playerPoint.x, playerPoint.y);
     ctx.rotate(Math.PI - playerYaw);
     ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "rgba(22, 28, 31, 0.9)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, -12);
     ctx.lineTo(8, 9);
@@ -128,40 +248,76 @@ export function WorldMap({ chunks, visitedChunks, playerX, playerY, playerOffset
     ctx.lineTo(-8, 9);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
     ctx.restore();
-
-    ctx.fillStyle = "rgba(7, 13, 16, 0.42)";
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalCompositeOperation = "destination-out";
-    for (const key of visitedChunks) {
-      const [cxText, cyText] = key.split(",");
-      const chunkX = BigInt(cxText) * BigInt(CHUNK_SIZE);
-      const chunkY = BigInt(cyText) * BigInt(CHUNK_SIZE);
-      if (abs(chunkX - view.x) > visibleTiles || abs(chunkY - view.y) > visibleTiles) continue;
-      const point = project(chunkX, chunkY);
-      ctx.fillRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
-    }
-    ctx.globalCompositeOperation = "source-over";
-  }, [chunks, enemies, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, visitedChunks]);
+  }, [enemies, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, visitedChunks]);
 
   return <div className="worldMapOverlay" role="dialog" aria-modal="true" aria-label="Bản đồ thế giới">
     <header className="worldMapHeader">
-      <div><span>Bản đồ thế giới</span><strong>{center.current.x.toString()}, {center.current.y.toString()}</strong></div>
+      <div><span>Bản đồ thế giới</span><strong>{center.current.x.toString()}, {center.current.y.toString()}</strong>{pendingTiles > 0 && <small>Đang tải {pendingTiles} tile...</small>}</div>
       <div className="worldMapTools">
-        <button type="button" onClick={() => setScale((value) => Math.max(MIN_SCALE, value / 1.35))} title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
         <button type="button" onClick={centerOnPlayer} title="Về vị trí người chơi" aria-label="Về vị trí người chơi">◎</button>
-        <button type="button" onClick={() => setScale((value) => Math.min(MAX_SCALE, value * 1.35))} title="Phóng to" aria-label="Phóng to">+</button>
         <button type="button" onClick={onClose} title="Đóng bản đồ" aria-label="Đóng bản đồ">×</button>
       </div>
     </header>
     <canvas
       ref={canvasRef}
       className="worldMapCanvas"
-      onWheel={(event) => { event.preventDefault(); setScale((value) => Math.max(MIN_SCALE, Math.min(MAX_SCALE, value * (event.deltaY > 0 ? 0.88 : 1.12)))); }}
-      onPointerDown={(event) => { drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={(event) => { if (drag.current.pointerId !== event.pointerId) return; const dx = event.clientX - drag.current.x; const dy = event.clientY - drag.current.y; if (Math.hypot(dx, dy) > 2) drag.current.moved = true; drag.current.x = event.clientX; drag.current.y = event.clientY; pan(dx, dy); }}
-      onPointerUp={(event) => { if (!drag.current.moved) { const rect = event.currentTarget.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const hit = enemyHits.current.find((entry) => Math.hypot(entry.x - x, entry.y - y) <= 14); if (hit) onSelectTarget(hit.enemy); } drag.current.pointerId = -1; }}
+      onWheel={(event) => { event.preventDefault(); setZoomLevel((value) => clampZoomLevel(value + (event.deltaY > 0 ? -6 : 6))); }}
+      onPointerDown={(event) => {
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        event.currentTarget.setPointerCapture(event.pointerId);
+        if (pointers.current.size === 1) drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+        if (pointers.current.size === 2) {
+          const [first, second] = [...pointers.current.values()];
+          pinchDistance.current = Math.hypot(first.x - second.x, first.y - second.y);
+          drag.current.moved = true;
+        }
+      }}
+      onPointerMove={(event) => {
+        if (!pointers.current.has(event.pointerId)) return;
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pointers.current.size >= 2) {
+          const [first, second] = [...pointers.current.values()];
+          const distance = Math.hypot(first.x - second.x, first.y - second.y);
+          if (pinchDistance.current > 0 && distance > 0) {
+            const ratio = distance / pinchDistance.current;
+            setZoomLevel((value) => clampZoomLevel(value + scaleRatioToZoomDelta(ratio, minScale)));
+          }
+          pinchDistance.current = distance;
+          drag.current.moved = true;
+          return;
+        }
+        if (drag.current.pointerId !== event.pointerId) return;
+        const dx = event.clientX - drag.current.x;
+        const dy = event.clientY - drag.current.y;
+        if (Math.hypot(dx, dy) > 2) drag.current.moved = true;
+        drag.current.x = event.clientX;
+        drag.current.y = event.clientY;
+        pan(dx, dy);
+      }}
+      onPointerUp={(event) => {
+        const wasPinching = pointers.current.size > 1;
+        pointers.current.delete(event.pointerId);
+        if (!drag.current.moved && !wasPinching) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          const hit = enemyHits.current.find((entry) => Math.hypot(entry.x - x, entry.y - y) <= 14);
+          if (hit) onSelectTarget(hit.enemy);
+        }
+        const remaining = [...pointers.current.entries()][0];
+        if (remaining) drag.current = { pointerId: remaining[0], x: remaining[1].x, y: remaining[1].y, moved: true };
+        else drag.current.pointerId = -1;
+        pinchDistance.current = 0;
+      }}
+      onPointerCancel={(event) => { pointers.current.delete(event.pointerId); drag.current.pointerId = -1; pinchDistance.current = 0; }}
     />
+    <div className="worldMapZoomControl" aria-label="Điều khiển thu phóng bản đồ">
+      <button type="button" onClick={() => setZoomLevel((value) => clampZoomLevel(value + ZOOM_BUTTON_STEP))} disabled={atMaxZoom} title="Phóng to" aria-label="Phóng to">+</button>
+      <input type="range" min={MAP_ZOOM_MIN_LEVEL} max={MAP_ZOOM_MAX_LEVEL} step={1} value={zoomLevel} disabled={zoomLocked} onChange={(event) => setZoomLevel(clampZoomLevel(Number(event.target.value)))} aria-label="Mức thu phóng bản đồ" />
+      <button type="button" onClick={() => setZoomLevel((value) => clampZoomLevel(value - ZOOM_BUTTON_STEP))} disabled={atMinZoom} title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
+    </div>
     <div className="worldMapLegend"><span><i className="enemyLegend" />Quái</span><span><i className="playerLegend" />Người chơi</span><small>Kéo để khám phá · Nhấn quái để theo dõi</small></div>
   </div>;
 }

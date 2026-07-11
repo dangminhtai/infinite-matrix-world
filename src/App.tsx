@@ -165,10 +165,18 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       const formTarget = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
       if (event.code === "KeyM" && !formTarget) {
-        setShowMap((current) => !current);
+        const next = !showMap;
+        setShowMap(next);
+        if (next) {
+          setShowInventory(false);
+          setShowSeed(false);
+          setShowTeleport(false);
+          setShowSettings(false);
+        }
         return;
       }
       if (event.code === "KeyI" && !formTarget) {
+        setShowMap(false);
         setShowInventory((current) => !current);
         return;
       }
@@ -423,7 +431,7 @@ export default function App() {
         onResetExploration={resetExploration}
       />}
       {showInventory && <InventoryMenu inventory={inventory} onClose={() => setShowInventory(false)} />}
-      {showMap && <WorldMap chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onClose={() => setShowMap(false)} />}
+      {showMap && <WorldMap seed={seed} chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
       {status === "loading" && chunks.length === 0 && <LoadingOverlay text="Đang sinh chunk bằng Web Worker..." />}
