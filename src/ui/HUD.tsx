@@ -1,3 +1,5 @@
+import type { TrackedTarget } from "../game/map/types";
+
 export function HUD({
   health,
   stamina,
@@ -5,6 +7,9 @@ export function HUD({
   interactionLabel,
   interactionKey,
   notification,
+  trackedTarget,
+  targetDistance,
+  onClearTarget,
   onInventory,
   onSettings,
 }: {
@@ -14,6 +19,9 @@ export function HUD({
   interactionLabel: string;
   interactionKey: string;
   notification: string;
+  trackedTarget: TrackedTarget | null;
+  targetDistance: string;
+  onClearTarget: () => void;
   onInventory: () => void;
   onSettings: () => void;
 }) {
@@ -26,6 +34,7 @@ export function HUD({
       {swimming && <div className="movementBadge">BƠI</div>}
       {interactionLabel && <div className="interactionPrompt"><kbd>{interactionKey}</kbd><span>{interactionLabel}</span></div>}
       {notification && <div className="pickupToast">{notification}</div>}
+      {trackedTarget && <div className="trackedTarget"><i aria-hidden="true" /><div><span>Mục tiêu</span><strong>Echo · {targetDistance}</strong></div><button type="button" onClick={onClearTarget} title="Bỏ theo dõi" aria-label="Bỏ theo dõi">×</button></div>}
       <button className="inventoryButton" type="button" onClick={onInventory} title="Túi đồ" aria-label="Mở túi đồ">▣</button>
       <button className="settingsButton" type="button" onClick={onSettings} title="Cài đặt" aria-label="Mở cài đặt">⚙</button>
     </div>

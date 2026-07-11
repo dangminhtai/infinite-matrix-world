@@ -32,6 +32,7 @@ NPC và nhiệm vụ không nằm trong phạm vi MVP hiện tại.
 | `J` | Tấn công thường |
 | `K` | Kỹ năng |
 | `I` | Mở hoặc đóng túi đồ |
+| `M` | Mở hoặc đóng bản đồ thế giới |
 | `Esc` | Mở Settings hoặc đóng cửa sổ đang mở |
 | Kéo chuột | Xoay camera |
 | Con lăn | Phóng gần hoặc xa camera |

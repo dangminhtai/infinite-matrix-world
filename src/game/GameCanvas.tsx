@@ -15,6 +15,7 @@ import { GrassRing } from "./rendering/GrassRing";
 import type { GameSettings } from "./settings";
 import { EntitySystem } from "./entities/EntitySystem";
 import type { Inventory } from "./core/SaveManager";
+import type { MapEnemy } from "./map/types";
 
 function floorDiv(a: bigint, b: bigint): bigint {
   let q = a / b;
@@ -87,6 +88,8 @@ function Scene({
   onInventoryChange,
   onInteractionChange,
   onNotify,
+  onMapEnemiesChange,
+  onEnemyDefeated,
 }: {
   chunks: ChunkPayload[];
   debug: boolean;
@@ -102,6 +105,8 @@ function Scene({
   onInventoryChange: (inventory: Inventory) => void;
   onInteractionChange: (label: string) => void;
   onNotify: (message: string) => void;
+  onMapEnemiesChange: (enemies: MapEnemy[]) => void;
+  onEnemyDefeated: (id: string) => void;
 }) {
   const chunkMap = useMemo(() => new Map(chunks.map((chunk) => [`${chunk.cx},${chunk.cy}`, chunk])), [chunks]);
   const game = useRef<GameState>({
@@ -453,6 +458,8 @@ function Scene({
         onInventoryChange={onInventoryChange}
         onInteractionChange={onInteractionChange}
         onNotify={onNotify}
+        onMapEnemiesChange={onMapEnemiesChange}
+        onEnemyDefeated={onEnemyDefeated}
       />
       <Player state={game} debugCollision={debugCollision} />
       <ThirdPersonCamera
@@ -481,6 +488,8 @@ export const GameCanvas = memo(function GameCanvas(props: {
   onInventoryChange: (inventory: Inventory) => void;
   onInteractionChange: (label: string) => void;
   onNotify: (message: string) => void;
+  onMapEnemiesChange: (enemies: MapEnemy[]) => void;
+  onEnemyDefeated: (id: string) => void;
 }) {
   const inputRef = useRef<PlayerInputState>({ pressed: new Set(), joystick: { x: 0, y: 0 }, jumpQueued: false, mobileRun: false, interactQueued: false, attackQueued: false, skillQueued: false });
   return (
@@ -507,6 +516,8 @@ export const GameCanvas = memo(function GameCanvas(props: {
           onInventoryChange={props.onInventoryChange}
           onInteractionChange={props.onInteractionChange}
           onNotify={props.onNotify}
+          onMapEnemiesChange={props.onMapEnemiesChange}
+          onEnemyDefeated={props.onEnemyDefeated}
         />
       </Canvas>
       <VirtualJoystick

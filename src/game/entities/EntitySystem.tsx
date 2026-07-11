@@ -6,6 +6,7 @@ import type { GameState, PlayerInputState } from "../GameCanvas";
 import type { ChunkPayload } from "../types";
 import { addInventoryItem, addModification, loadWorldSave, saveWorld, type Inventory } from "../core/SaveManager";
 import { spawnChunkEntities, type SpawnedEntity } from "../spawn/deterministicSpawn";
+import type { MapEnemy } from "../map/types";
 
 type RuntimeEntity = SpawnedEntity & {
   hp: number;
@@ -40,6 +41,8 @@ export function EntitySystem({
   onInventoryChange,
   onInteractionChange,
   onNotify,
+  onMapEnemiesChange,
+  onEnemyDefeated,
 }: {
   chunks: ChunkPayload[];
   originCx: bigint;
@@ -50,6 +53,8 @@ export function EntitySystem({
   onInventoryChange: (inventory: Inventory) => void;
   onInteractionChange: (label: string) => void;
   onNotify: (message: string) => void;
+  onMapEnemiesChange: (enemies: MapEnemy[]) => void;
+  onEnemyDefeated: (id: string) => void;
 }) {
   const collectibleRef = useRef<THREE.InstancedMesh>(null);
   const chestRef = useRef<THREE.InstancedMesh>(null);
@@ -61,6 +66,7 @@ export function EntitySystem({
   const activeIds = useRef(new Set<string>());
   const interactionLabelRef = useRef("");
   const skillReadyAt = useRef(0);
+  const lastMapUpdateAt = useRef(0);
   const spawns = useMemo(() => chunks.flatMap(spawnChunkEntities), [chunks]);
 
   useEffect(() => {
@@ -104,6 +110,7 @@ export function EntitySystem({
     let nearestInteractionDistance = Infinity;
     let nearestEnemy: RuntimeEntity | null = null;
     let nearestEnemyDistance = Infinity;
+    const mapEnemies: MapEnemy[] = [];
 
     for (const id of activeIds.current) {
       const entity = entitiesRef.current.get(id);
@@ -170,7 +177,19 @@ export function EntitySystem({
         dummy.scale.setScalar(0.55);
         dummy.updateMatrix();
         enemyRef.current?.setMatrixAt(enemyCount++, dummy.matrix);
+        mapEnemies.push({
+          id: entity.id,
+          worldX: entity.worldX.toString(),
+          worldY: entity.worldY.toString(),
+          offsetX: entity.offsetX + entity.moveX,
+          offsetY: entity.offsetZ + entity.moveZ,
+        });
       }
+    }
+
+    if (now - lastMapUpdateAt.current >= 0.25) {
+      lastMapUpdateAt.current = now;
+      onMapEnemiesChange(mapEnemies);
     }
 
     const nextLabel = nearestInteraction ? entityLabel(nearestInteraction) : "";
@@ -207,6 +226,7 @@ export function EntitySystem({
       addModification(save.defeatedEnemies, entity.id);
       addInventoryItem(save, "echo_core", 1);
       activeIds.current.delete(entity.id);
+      onEnemyDefeated(entity.id);
       saveWorld(seedKey, save);
       onInventoryChange({ ...save.inventory });
       onNotify("Đã đánh bại Echo");

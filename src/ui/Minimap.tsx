@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CHUNK_SIZE } from "../game/constants";
+import type { MapEnemy, TrackedTarget } from "../game/map/types";
 import type { BiomeId, ChunkPayload } from "../game/types";
 
 const biomeColors: Record<BiomeId, string> = {
@@ -17,14 +18,20 @@ export function Minimap({
   worldTileY,
   offsetX,
   offsetY,
-  cameraYaw,
+  playerYaw,
+  enemies,
+  target,
+  onOpenMap,
 }: {
   chunks: ChunkPayload[];
   worldTileX: string;
   worldTileY: string;
   offsetX: number;
   offsetY: number;
-  cameraYaw: number;
+  playerYaw: number;
+  enemies: MapEnemy[];
+  target: TrackedTarget | null;
+  onOpenMap: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -38,7 +45,7 @@ export function Minimap({
     canvas.height = cssSize * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssSize, cssSize);
-    ctx.fillStyle = "rgba(11, 24, 31, 0.72)";
+    ctx.fillStyle = "rgba(11, 24, 31, 0.78)";
     ctx.beginPath();
     ctx.arc(cssSize / 2, cssSize / 2, cssSize / 2 - 2, 0, Math.PI * 2);
     ctx.fill();
@@ -66,7 +73,7 @@ export function Minimap({
           ctx.fillRect(sx, sy, scale + 0.5, scale + 0.5);
         }
       }
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
       ctx.lineWidth = 1;
       ctx.strokeRect(
         cssSize / 2 + (Number(chunkBaseX - px) - offsetX) * scale,
@@ -75,11 +82,22 @@ export function Minimap({
         CHUNK_SIZE * scale,
       );
     }
+
+    for (const enemy of enemies) {
+      const sx = cssSize / 2 + (Number(BigInt(enemy.worldX) - px) + enemy.offsetX - offsetX) * scale;
+      const sy = cssSize / 2 + (Number(BigInt(enemy.worldY) - py) + enemy.offsetY - offsetY) * scale;
+      const distanceFromCenter = Math.hypot(sx - cssSize / 2, sy - cssSize / 2);
+      if (distanceFromCenter > cssSize / 2 - 10) continue;
+      ctx.fillStyle = enemy.id === target?.id ? "#ffd45c" : "#e95665";
+      ctx.beginPath();
+      ctx.arc(sx, sy, enemy.id === target?.id ? 4.5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
 
     ctx.save();
     ctx.translate(cssSize / 2, cssSize / 2);
-    ctx.rotate(-cameraYaw);
+    ctx.rotate(Math.PI - playerYaw);
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.moveTo(0, -11);
@@ -90,12 +108,12 @@ export function Minimap({
     ctx.fill();
     ctx.restore();
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.84)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.86)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cssSize / 2, cssSize / 2, cssSize / 2 - 5, 0, Math.PI * 2);
     ctx.stroke();
-  }, [cameraYaw, chunks, offsetX, offsetY, worldTileX, worldTileY]);
+  }, [chunks, enemies, offsetX, offsetY, playerYaw, target?.id, worldTileX, worldTileY]);
 
-  return <canvas ref={canvasRef} className="minimap" aria-label="Minimap" />;
+  return <canvas ref={canvasRef} className="minimap" aria-label="Mở bản đồ" role="button" tabIndex={0} onClick={onOpenMap} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpenMap(); }} />;
 }

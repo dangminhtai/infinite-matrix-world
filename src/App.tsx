@@ -16,6 +16,8 @@ import { SettingsMenu } from "./ui/SettingsMenu";
 import { QualityManager, resolveGraphicsQuality, type RuntimeQuality } from "./game/core/QualityManager";
 import { loadWorldSave, type Inventory } from "./game/core/SaveManager";
 import { InventoryMenu } from "./ui/InventoryMenu";
+import { WorldMap } from "./ui/WorldMap";
+import type { MapEnemy, TrackedTarget } from "./game/map/types";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -54,6 +56,16 @@ function addBounded(set: Set<string>, value: string, maxSize: number): boolean {
   return true;
 }
 
+function formatTargetDistance(target: TrackedTarget | null, worldTileX: string, worldTileY: string, offsetX: number, offsetY: number): string {
+  if (!target) return "";
+  const dx = Number(BigInt(target.worldX) - BigInt(worldTileX)) + target.offsetX - offsetX;
+  const dy = Number(BigInt(target.worldY) - BigInt(worldTileY)) + target.offsetY - offsetY;
+  const distance = Math.hypot(dx, dy);
+  if (!Number.isFinite(distance)) return "Rất xa";
+  if (distance < 1000) return `${Math.round(distance)} m`;
+  return `${(distance / 1000).toFixed(distance < 10_000 ? 1 : 0)} km`;
+}
+
 export default function App() {
   const [seed, setSeed] = useState(defaultSeedStrings);
   const [settings, setSettings] = useState(loadSettings);
@@ -68,6 +80,9 @@ export default function App() {
   const [showInventory, setShowInventory] = useState(false);
   const [interactionLabel, setInteractionLabel] = useState("");
   const [notification, setNotification] = useState("");
+  const [showMap, setShowMap] = useState(false);
+  const [mapEnemies, setMapEnemies] = useState<MapEnemy[]>([]);
+  const [trackedTarget, setTrackedTarget] = useState<TrackedTarget | null>(null);
   const manager = useMemo(() => {
     const next = new ChunkManager(seed);
     next.setActiveRadius(effectiveSettings.graphics.renderDistance);
@@ -95,6 +110,7 @@ export default function App() {
     originX: "0",
     originY: "0",
     cameraYaw: 0,
+    playerYaw: 0,
     cameraZoom: 23,
     fps: 0,
     health: 100,
@@ -148,19 +164,24 @@ export default function App() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const formTarget = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
+      if (event.code === "KeyM" && !formTarget) {
+        setShowMap((current) => !current);
+        return;
+      }
       if (event.code === "KeyI" && !formTarget) {
         setShowInventory((current) => !current);
         return;
       }
       if (event.key !== "Escape") return;
-      if (showInventory) setShowInventory(false);
+      if (showMap) setShowMap(false);
+      else if (showInventory) setShowInventory(false);
       else if (showSeed) setShowSeed(false);
       else if (showTeleport) setShowTeleport(false);
       else setShowSettings((current) => !current);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showInventory, showSeed, showTeleport]);
+  }, [showInventory, showMap, showSeed, showTeleport]);
 
   useEffect(() => {
     const offChunk = manager.onChunk(() => {
@@ -201,6 +222,8 @@ export default function App() {
     const nextKey = JSON.stringify(nextSeed);
     setSeed(nextSeed);
     setInventory(loadWorldSave(nextKey).inventory);
+    setMapEnemies([]);
+    setTrackedTarget(null);
     const saved = localStorage.getItem(`ihmw.exploration.${nextKey}`);
     setExploration(saved ? JSON.parse(saved) as ExplorationStats : emptyExploration(nextKey));
     seenDecorKeys.current.clear();
@@ -260,6 +283,15 @@ export default function App() {
     }, 2200);
   }, []);
 
+  const updateMapEnemies = useCallback((enemies: MapEnemy[]) => {
+    setMapEnemies(enemies);
+    setTrackedTarget((current) => current ? enemies.find((enemy) => enemy.id === current.id) ?? current : null);
+  }, []);
+
+  const handleEnemyDefeated = useCallback((id: string) => {
+    setTrackedTarget((current) => current?.id === id ? null : current);
+  }, []);
+
   useEffect(() => () => {
     if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
   }, []);
@@ -272,7 +304,7 @@ export default function App() {
     setExploration(next);
   }, [seedKey]);
 
-  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; swimming: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
+  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; yaw: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; swimming: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
     const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const offsetX = state.localX - Math.floor(state.localX);
@@ -298,6 +330,7 @@ export default function App() {
         originX: state.tileX.toString(),
         originY: state.tileY.toString(),
         cameraYaw: state.cameraYaw,
+        playerYaw: state.yaw,
         cameraZoom: state.cameraZoom,
         fps: state.fps,
         health: state.health,
@@ -349,9 +382,11 @@ export default function App() {
     });
   }, [chunks, qualityManager, seedKey, settings.graphics.fpsLimit]);
 
+  const targetDistance = formatTargetDistance(trackedTarget, stats.worldTileX, stats.worldTileY, stats.offsetX, stats.offsetY);
+
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={showSettings || showSeed || showTeleport || showInventory} seedKey={seedKey} onInventoryChange={setInventory} onInteractionChange={setInteractionLabel} onNotify={notify} />
+      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={showSettings || showSeed || showTeleport || showInventory || showMap} seedKey={seedKey} onInventoryChange={setInventory} onInteractionChange={setInteractionLabel} onNotify={notify} onMapEnemiesChange={updateMapEnemies} onEnemyDefeated={handleEnemyDefeated} />
       <HUD
         health={stats.health}
         stamina={stats.stamina}
@@ -359,10 +394,13 @@ export default function App() {
         interactionLabel={interactionLabel}
         interactionKey={settings.controls.interact.replace("Key", "")}
         notification={notification}
+        trackedTarget={trackedTarget}
+        targetDistance={targetDistance}
+        onClearTarget={() => setTrackedTarget(null)}
         onInventory={() => setShowInventory(true)}
         onSettings={() => setShowSettings(true)}
       />
-      {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} cameraYaw={stats.cameraYaw} />}
+      {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} onOpenMap={() => setShowMap(true)} />}
       {showSettings && <SettingsMenu
         settings={settings}
         runtimeQuality={runtimeQuality}
@@ -385,6 +423,7 @@ export default function App() {
         onResetExploration={resetExploration}
       />}
       {showInventory && <InventoryMenu inventory={inventory} onClose={() => setShowInventory(false)} />}
+      {showMap && <WorldMap chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
       {status === "loading" && chunks.length === 0 && <LoadingOverlay text="Đang sinh chunk bằng Web Worker..." />}
