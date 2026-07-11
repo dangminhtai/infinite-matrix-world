@@ -14,6 +14,8 @@ import { BIOME_NAMES } from "./game/types";
 import { loadSettings, saveSettings, type GameSettings } from "./game/settings";
 import { SettingsMenu } from "./ui/SettingsMenu";
 import { QualityManager, resolveGraphicsQuality, type RuntimeQuality } from "./game/core/QualityManager";
+import { loadWorldSave, type Inventory } from "./game/core/SaveManager";
+import { InventoryMenu } from "./ui/InventoryMenu";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -62,6 +64,10 @@ export default function App() {
     graphics: resolveGraphicsQuality(settings.graphics, runtimeQuality),
   }), [runtimeQuality, settings]);
   const seedKey = JSON.stringify(seed);
+  const [inventory, setInventory] = useState<Inventory>(() => loadWorldSave(seedKey).inventory);
+  const [showInventory, setShowInventory] = useState(false);
+  const [interactionLabel, setInteractionLabel] = useState("");
+  const [notification, setNotification] = useState("");
   const manager = useMemo(() => {
     const next = new ChunkManager(seed);
     next.setActiveRadius(effectiveSettings.graphics.renderDistance);
@@ -93,6 +99,7 @@ export default function App() {
     fps: 0,
     health: 100,
     stamina: 100,
+    swimming: false,
     frameTimeMs: 0,
     frameTimeMaxMs: 0,
     drawCalls: 0,
@@ -116,6 +123,7 @@ export default function App() {
   const lastStatsAt = useRef(0);
   const lastExplorationAt = useRef(0);
   const chunkRefreshFrame = useRef<number | null>(null);
+  const notificationTimer = useRef<number | null>(null);
   const seenDecorKeys = useRef(new Set<string>());
 
   const performanceStats = useMemo(
@@ -139,20 +147,20 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const formTarget = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
+      if (event.code === "KeyI" && !formTarget) {
+        setShowInventory((current) => !current);
+        return;
+      }
       if (event.key !== "Escape") return;
-      if (showSeed) {
-        setShowSeed(false);
-        return;
-      }
-      if (showTeleport) {
-        setShowTeleport(false);
-        return;
-      }
-      setShowSettings((current) => !current);
+      if (showInventory) setShowInventory(false);
+      else if (showSeed) setShowSeed(false);
+      else if (showTeleport) setShowTeleport(false);
+      else setShowSettings((current) => !current);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showSeed, showTeleport]);
+  }, [showInventory, showSeed, showTeleport]);
 
   useEffect(() => {
     const offChunk = manager.onChunk(() => {
@@ -192,6 +200,7 @@ export default function App() {
   const applySeed = useCallback((nextSeed: string[][]) => {
     const nextKey = JSON.stringify(nextSeed);
     setSeed(nextSeed);
+    setInventory(loadWorldSave(nextKey).inventory);
     const saved = localStorage.getItem(`ihmw.exploration.${nextKey}`);
     setExploration(saved ? JSON.parse(saved) as ExplorationStats : emptyExploration(nextKey));
     seenDecorKeys.current.clear();
@@ -242,6 +251,19 @@ export default function App() {
     });
   }, []);
 
+  const notify = useCallback((message: string) => {
+    setNotification(message);
+    if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
+    notificationTimer.current = window.setTimeout(() => {
+      notificationTimer.current = null;
+      setNotification("");
+    }, 2200);
+  }, []);
+
+  useEffect(() => () => {
+    if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
+  }, []);
+
   const resetExploration = useCallback(() => {
     const next = emptyExploration(seedKey);
     seenDecorKeys.current.clear();
@@ -250,7 +272,7 @@ export default function App() {
     setExploration(next);
   }, [seedKey]);
 
-  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
+  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; swimming: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
     const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const offsetX = state.localX - Math.floor(state.localX);
@@ -280,6 +302,7 @@ export default function App() {
         fps: state.fps,
         health: state.health,
         stamina: state.stamina,
+        swimming: state.swimming,
         frameTimeMs: state.frameTimeMs,
         frameTimeMaxMs: state.frameTimeMaxMs,
         drawCalls: state.drawCalls,
@@ -328,11 +351,15 @@ export default function App() {
 
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={showSettings || showSeed || showTeleport} />
+      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={showSettings || showSeed || showTeleport || showInventory} seedKey={seedKey} onInventoryChange={setInventory} onInteractionChange={setInteractionLabel} onNotify={notify} />
       <HUD
         health={stats.health}
         stamina={stats.stamina}
-        showQuestTracker={settings.gameplay.showQuestTracker}
+        swimming={stats.swimming}
+        interactionLabel={interactionLabel}
+        interactionKey={settings.controls.interact.replace("Key", "")}
+        notification={notification}
+        onInventory={() => setShowInventory(true)}
         onSettings={() => setShowSettings(true)}
       />
       {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} cameraYaw={stats.cameraYaw} />}
@@ -357,6 +384,7 @@ export default function App() {
         onRunTests={runSelfTests}
         onResetExploration={resetExploration}
       />}
+      {showInventory && <InventoryMenu inventory={inventory} onClose={() => setShowInventory(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
       {status === "loading" && chunks.length === 0 && <LoadingOverlay text="Đang sinh chunk bằng Web Worker..." />}

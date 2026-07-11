@@ -1,12 +1,20 @@
 export function HUD({
   health,
   stamina,
-  showQuestTracker,
+  swimming,
+  interactionLabel,
+  interactionKey,
+  notification,
+  onInventory,
   onSettings,
 }: {
   health: number;
   stamina: number;
-  showQuestTracker: boolean;
+  swimming: boolean;
+  interactionLabel: string;
+  interactionKey: string;
+  notification: string;
+  onInventory: () => void;
   onSettings: () => void;
 }) {
   return (
@@ -15,7 +23,10 @@ export function HUD({
         <div className="vitalRow"><span>HP</span><div className="vitalTrack"><i className="healthFill" style={{ width: `${health}%` }} /></div></div>
         <div className="vitalRow"><span>ST</span><div className="vitalTrack"><i className="staminaFill" style={{ width: `${stamina}%` }} /></div></div>
       </div>
-      {showQuestTracker && <div className="questTracker"><span>Mục tiêu</span><strong>Khám phá thế giới vô hạn</strong></div>}
+      {swimming && <div className="movementBadge">BƠI</div>}
+      {interactionLabel && <div className="interactionPrompt"><kbd>{interactionKey}</kbd><span>{interactionLabel}</span></div>}
+      {notification && <div className="pickupToast">{notification}</div>}
+      <button className="inventoryButton" type="button" onClick={onInventory} title="Túi đồ" aria-label="Mở túi đồ">▣</button>
       <button className="settingsButton" type="button" onClick={onSettings} title="Cài đặt" aria-label="Mở cài đặt">⚙</button>
     </div>
   );

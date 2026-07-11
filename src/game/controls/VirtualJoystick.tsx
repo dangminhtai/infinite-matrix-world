@@ -55,12 +55,21 @@ export function VirtualJoystick({ onChange, size, opacity }: { onChange: (input:
 export function MobileActionButtons({
   onJump,
   onRunChange,
+  onInteract,
+  onAttack,
+  onSkill,
 }: {
   onJump: () => void;
   onRunChange: (running: boolean) => void;
+  onInteract: () => void;
+  onAttack: () => void;
+  onSkill: () => void;
 }) {
   return (
     <div className="mobileActions">
+      <button className="mobileActionButton interactAction" type="button" title="Tương tác" aria-label="Tương tác" onPointerDown={(event) => { event.stopPropagation(); onInteract(); }}>E</button>
+      <button className="mobileActionButton attackAction" type="button" title="Tấn công" aria-label="Tấn công" onPointerDown={(event) => { event.stopPropagation(); onAttack(); }}>ATK</button>
+      <button className="mobileActionButton skillAction" type="button" title="Kỹ năng" aria-label="Kỹ năng" onPointerDown={(event) => { event.stopPropagation(); onSkill(); }}>SKL</button>
       <button
         className="mobileActionButton runAction"
         type="button"

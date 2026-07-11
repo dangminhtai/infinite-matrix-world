@@ -82,36 +82,63 @@ button:hover {
 .healthFill { background: #db5262; }
 .staminaFill { background: #e3b84f; }
 
-.questTracker {
+.movementBadge {
   position: absolute;
   left: 18px;
   top: 94px;
-  display: grid;
-  gap: 2px;
-  padding-left: 10px;
-  border-left: 3px solid #e3b84f;
+  padding: 5px 9px;
+  border-left: 3px solid #55d6d0;
+  background: rgba(10, 20, 25, 0.72);
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
-}
-
-.questTracker span {
-  color: #f0c85e;
   font-size: 11px;
-  text-transform: uppercase;
+  font-weight: 800;
 }
 
-.questTracker strong { font-size: 13px; }
+.interactionPrompt,
+.pickupToast {
+  position: absolute;
+  left: 50%;
+  bottom: 54px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 11px;
+  background: rgba(10, 20, 25, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 7px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.interactionPrompt kbd {
+  min-width: 24px;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.13);
+  text-align: center;
+}
+
+.pickupToast {
+  bottom: 100px;
+  border-color: rgba(85, 214, 208, 0.55);
+  color: #dffcf9;
+}
 
 .settingsButton,
+.inventoryButton,
 .iconButton {
   display: grid;
   place-items: center;
   padding: 0;
 }
 
-.settingsButton {
+.settingsButton,
+.inventoryButton {
   position: absolute;
-  right: 18px;
   bottom: 18px;
   width: 42px;
   height: 42px;
@@ -121,6 +148,81 @@ button:hover {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.28);
 }
+
+.settingsButton { right: 18px; }
+.inventoryButton { right: 70px; font-size: 18px; }
+
+.inventoryOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(7, 13, 16, 0.72);
+}
+
+.inventoryPanel {
+  width: min(560px, 100%);
+  max-height: min(620px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid #34454d;
+  border-radius: 8px;
+  background: #15232a;
+  color: #f3f6f7;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.inventoryPanel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.inventoryPanel header span {
+  color: #7bd6d0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.inventoryPanel h2 { margin: 2px 0 0; font-size: 20px; }
+.inventoryPanel .iconButton { width: 36px; height: 36px; background: #24343b; color: #fff; }
+
+.inventoryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.inventoryItem {
+  min-height: 112px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid #33454d;
+  border-radius: 7px;
+  background: #1c2d34;
+}
+
+.inventoryItem i {
+  grid-column: 1 / -1;
+  width: 34px;
+  height: 34px;
+  align-self: center;
+  justify-self: center;
+  transform: rotate(45deg);
+  border: 2px solid #a4f1eb;
+  background: #318c8a;
+}
+
+.inventoryItem span { min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.inventoryItem strong { color: #f1c65e; font-size: 13px; }
+.emptyInventory { grid-column: 1 / -1; margin: 24px 0; text-align: center; color: #aebbc0; }
 
 .settingsOverlay {
   position: fixed;
@@ -456,14 +558,15 @@ button:hover {
   bottom: 22px;
   z-index: 12;
   display: none;
-  align-items: flex-end;
-  gap: 12px;
+  grid-template-columns: repeat(3, 48px);
+  align-items: end;
+  gap: 7px;
   pointer-events: auto;
 }
 
 .mobileActionButton {
-  width: 58px;
-  height: 58px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   border-radius: 50%;
   touch-action: none;
@@ -473,8 +576,8 @@ button:hover {
 }
 
 .jumpAction {
-  width: 68px;
-  height: 68px;
+  width: 48px;
+  height: 48px;
   font-size: 28px;
 }
 
@@ -557,18 +660,21 @@ button:hover {
     width: 176px;
   }
 
-  .questTracker {
+  .movementBadge {
     top: 82px;
     left: 10px;
-    max-width: calc(100vw - 132px);
   }
 
-  .settingsButton {
-    right: 10px;
-    bottom: 94px;
-  }
+  .settingsButton { top: 120px; right: 10px; bottom: auto; }
+  .inventoryButton { top: 120px; right: 62px; bottom: auto; }
+  .interactionPrompt { bottom: 142px; }
+  .pickupToast { bottom: 184px; }
 
   .settingsOverlay { padding: 0; }
+
+  .inventoryOverlay { padding: 10px; }
+  .inventoryPanel { max-height: calc(100vh - 20px); }
+  .inventoryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .settingsPanel {
     width: 100%;
@@ -681,13 +787,11 @@ button:hover {
   }
 
   .mobileActions {
-    display: flex;
+    display: grid;
   }
 }
 
 @media (max-width: 430px) {
-  .questTracker strong { font-size: 12px; }
-
   .settingRange,
   .settingToggle,
   .settingSelect,

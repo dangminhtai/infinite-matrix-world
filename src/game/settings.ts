@@ -10,7 +10,6 @@ export type GameSettings = {
     invertY: boolean;
     autoRun: boolean;
     showMinimap: boolean;
-    showQuestTracker: boolean;
     developerMode: boolean;
   };
   graphics: {
@@ -34,6 +33,9 @@ export type GameSettings = {
     right: string;
     run: string;
     jump: string;
+    interact: string;
+    attack: string;
+    skill: string;
     joystickSize: number;
     joystickOpacity: number;
     touchCameraSensitivity: number;
@@ -47,7 +49,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
     invertY: false,
     autoRun: false,
     showMinimap: true,
-    showQuestTracker: true,
     developerMode: import.meta.env.DEV,
   },
   graphics: {
@@ -71,6 +72,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
     right: "KeyD",
     run: "ShiftLeft",
     jump: "Space",
+    interact: "KeyE",
+    attack: "KeyJ",
+    skill: "KeyK",
     joystickSize: 112,
     joystickOpacity: 0.72,
     touchCameraSensitivity: 1,

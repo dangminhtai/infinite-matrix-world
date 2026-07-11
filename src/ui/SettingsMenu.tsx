@@ -24,7 +24,7 @@ type DeveloperStats = {
   tests: string[];
 };
 
-const KEY_OPTIONS = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "ShiftLeft", "Space"];
+const KEY_OPTIONS = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "KeyJ", "KeyK", "KeyL", "ShiftLeft", "Space"];
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
   return (
@@ -133,7 +133,6 @@ export function SettingsMenu({
             <Toggle label="Đảo trục Y" checked={draft.gameplay.invertY} onChange={(invertY) => update("gameplay", { invertY })} />
             <Toggle label="Tự động chạy" checked={draft.gameplay.autoRun} onChange={(autoRun) => update("gameplay", { autoRun })} />
             <Toggle label="Hiện minimap" checked={draft.gameplay.showMinimap} onChange={(showMinimap) => update("gameplay", { showMinimap })} />
-            <Toggle label="Hiện mục tiêu" checked={draft.gameplay.showQuestTracker} onChange={(showQuestTracker) => update("gameplay", { showQuestTracker })} />
             {!import.meta.env.DEV && <Toggle label="Developer mode" checked={draft.gameplay.developerMode} onChange={(developerMode) => update("gameplay", { developerMode })} />}
           </div>}
 
@@ -156,7 +155,7 @@ export function SettingsMenu({
 
           {tab === "controls" && <div className="settingsSection">
             <h3>Bàn phím và cảm ứng</h3>
-            {(["forward", "backward", "left", "right", "run", "jump"] as const).map((control) => <label className="settingSelect" key={control}><span>{({ forward: "Tiến", backward: "Lùi", left: "Trái", right: "Phải", run: "Chạy", jump: "Nhảy" })[control]}</span><select value={draft.controls[control]} onChange={(event) => update("controls", { [control]: event.target.value })}>{KEY_OPTIONS.map((key) => <option key={key} value={key}>{key.replace("Key", "")}</option>)}</select></label>)}
+            {(["forward", "backward", "left", "right", "run", "jump", "interact", "attack", "skill"] as const).map((control) => <label className="settingSelect" key={control}><span>{({ forward: "Tiến", backward: "Lùi", left: "Trái", right: "Phải", run: "Chạy", jump: "Nhảy", interact: "Tương tác", attack: "Tấn công", skill: "Kỹ năng" })[control]}</span><select value={draft.controls[control]} onChange={(event) => update("controls", { [control]: event.target.value })}>{KEY_OPTIONS.map((key) => <option key={key} value={key}>{key.replace("Key", "")}</option>)}</select></label>)}
             <Range label="Kích thước joystick" value={draft.controls.joystickSize} min={88} max={160} step={4} onChange={(joystickSize) => update("controls", { joystickSize })} suffix=" px" />
             <Range label="Độ mờ joystick" value={draft.controls.joystickOpacity} min={0.25} max={1} step={0.05} onChange={(joystickOpacity) => update("controls", { joystickOpacity })} />
             <Range label="Độ nhạy camera cảm ứng" value={draft.controls.touchCameraSensitivity} min={0.25} max={2.5} step={0.05} onChange={(touchCameraSensitivity) => update("controls", { touchCameraSensitivity })} />

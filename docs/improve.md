@@ -214,7 +214,6 @@ HUD gameplay mặc định chỉ được hiển thị:
 - Minimap.
 - Tâm ngắm hoặc dấu tương tác khi cần.
 - Nút kỹ năng/tấn công trên mobile.
-- Một dòng nhiệm vụ ngắn.
 - Thông báo nhặt vật phẩm ngắn hạn.
 
 Không hiển thị mặc định:
@@ -246,7 +245,6 @@ Settings gồm các tab:
 - Invert Y
 - Auto-run
 - Show minimap
-- Show quest tracker
 
 2. Graphics
 
@@ -437,31 +435,37 @@ Sau khi camera và FPS ổn định, thêm gameplay nhỏ nhưng hoàn chỉnh.
 - Có animation state machine, trước mắt có thể dùng model placeholder hợp pháp.
 - Sau này dễ thay bằng GLTF nhân vật riêng.
 
-2. Tương tác
+2. Bơi
+
+- Phát hiện vùng nước từ biome/collision data xác định của chunk, không dựa vào raycast toàn scene.
+- Player được phép đi từ bờ xuống nước; water không còn là ô bị chặn tuyệt đối.
+- Khi thân player chạm mặt nước, chuyển sang trạng thái swim và nổi ở cao độ mặt nước ổn định.
+- Di chuyển bơi vẫn tương đối theo camera và nhân delta time.
+- Bơi thường có tốc độ thấp hơn đi bộ; giữ Shift để bơi nhanh và tiêu hao stamina.
+- Stamina hồi khi đứng trên đất, không hồi khi đang bơi.
+- Khi stamina bằng 0, player chỉ bơi chậm và bắt đầu mất máu theo thời gian; không chết chìm ngay lập tức.
+- Khi máu bằng 0, đưa player về vị trí đất an toàn gần nhất đã ghi nhận.
+- Space tạo một nhịp nổi/đạp nước ngắn; không triển khai lặn tự do trong MVP.
+- Khi đi từ nước vào ô đất walkable, player tự rời trạng thái swim và bám lại độ cao terrain.
+- Camera giữ yaw/pitch độc lập khi bơi và không bị kéo xuống dưới mặt nước.
+- Mobile dùng joystick để bơi, nút chạy để bơi nhanh và nút nhảy để đạp nước.
+- Tối thiểu có animation state swim; model placeholder có thể dùng chuyển động tay/chân procedural.
+
+3. Tương tác
 
 - Vật phẩm thu thập được.
 - Rương.
 - Điểm hồi phục.
-- NPC placeholder.
 - Hiển thị nút “Tương tác” khi đủ gần.
 - Không kiểm tra toàn bộ object mỗi frame; chỉ query object lân cận.
 
-3. Inventory
+4. Inventory
 
 - Inventory đơn giản.
 - Stack item.
 - Hiển thị icon placeholder nhẹ.
 - Lưu localStorage.
 - Không cần hệ thống trang bị phức tạp trong MVP.
-
-4. Nhiệm vụ đầu tiên
-   Ví dụ:
-
-- Đi đến một điểm đánh dấu.
-- Thu thập 3 vật phẩm.
-- Đánh bại một quái nhỏ.
-- Mở một rương.
-- Nhận phần thưởng.
 
 5. Combat cơ bản
 
@@ -476,7 +480,7 @@ Sau khi camera và FPS ổn định, thêm gameplay nhỏ nhưng hoàn chỉnh.
 - Entity xa phải sleep hoàn toàn.
 
 6. Spawn xác định
-   NPC, rương, tài nguyên và quái phải được sinh deterministically từ:
+   Rương, tài nguyên, điểm hồi phục và quái phải được sinh deterministically từ:
 
 seed
 chunk coordinate
@@ -489,7 +493,6 @@ Chỉ lưu thay đổi của người chơi dưới dạng sparse world modifica
 - rương đã mở
 - vật phẩm đã nhặt
 - quái đặc biệt đã bị tiêu diệt
-- nhiệm vụ đã hoàn thành
 
 Khóa lưu phải dựa trên seed + chunk + entityId.
 
@@ -512,6 +515,7 @@ PlayerController.tsx
 PlayerMovement.ts
 PlayerState.ts
 PlayerModel.tsx
+Swimming.ts
 camera/
 ThirdPersonCamera.tsx
 CameraCollision.ts
@@ -529,14 +533,11 @@ Chest.ts
 combat/
 CombatSystem.ts
 Hitbox.ts
-quests/
-QuestManager.ts
 ui/
 HUD.tsx
 Minimap.tsx
 SettingsMenu.tsx
 InventoryMenu.tsx
-QuestTracker.tsx
 MobileControls.tsx
 DeveloperPanel.tsx
 workers/
@@ -622,19 +623,20 @@ Dự án chỉ được coi là hoàn thành MVP khi:
 8. Game vẫn xác định theo seed và tọa độ.
 9. Teleport xa không nhận chunk cũ từ worker.
 10. Cache và history không tăng vô hạn.
-11. Player có idle/walk/run/jump.
-12. Có ít nhất một vật phẩm, một rương, một quái và một nhiệm vụ.
-13. Có save/load local.
-14. Không tạo một mesh riêng cho từng cây/đá/hoa.
-15. Mobile không nhận nhầm touch joystick thành xoay camera.
-16. Có báo cáo trước/sau về:
+11. Player có idle/walk/run/jump/fall/swim.
+12. Player có thể đi từ bờ xuống nước, bơi bằng keyboard/joystick và trở lại bờ mà camera không giật.
+13. Có ít nhất một vật phẩm, một rương, một điểm hồi phục và một quái.
+14. Có save/load local.
+15. Không tạo một mesh riêng cho từng cây/đá/hoa.
+16. Mobile không nhận nhầm touch joystick thành xoay camera.
+17. Có báo cáo trước/sau về:
     - FPS
     - triangles
     - draw calls
     - worker time
     - bundle size
-17. Không thêm asset vi phạm bản quyền.
-18. Không làm mất các tính năng world generation hiện tại.
+18. Không thêm asset vi phạm bản quyền.
+19. Không làm mất các tính năng world generation hiện tại.
 
 ==================================================
 XIII. CÁCH LÀM VIỆC
@@ -657,4 +659,4 @@ Sau mỗi phase:
 4. Đưa checklist kiểm thử thủ công.
 5. Không chuyển sang phase tiếp theo nếu phase hiện tại chưa đạt.
 
-Bắt đầu bằng PHASE 0 và PHASE 1. Chưa triển khai combat, nhiệm vụ hoặc inventory cho đến khi camera, input và FPS đã ổn định.
+Bắt đầu bằng PHASE 0 và PHASE 1. Chưa triển khai combat hoặc inventory cho đến khi camera, input và FPS đã ổn định. NPC và nhiệm vụ nằm ngoài phạm vi MVP hiện tại.
