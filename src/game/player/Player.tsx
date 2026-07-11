@@ -3,7 +3,7 @@ import { useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import type { GameState } from "../GameCanvas";
 
-export function Player({ state }: { state: MutableRefObject<GameState> }) {
+export function Player({ state, debugCollision }: { state: MutableRefObject<GameState>; debugCollision: boolean }) {
   const group = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Mesh>(null);
   const rightLeg = useRef<THREE.Mesh>(null);
@@ -37,6 +37,10 @@ export function Player({ state }: { state: MutableRefObject<GameState> }) {
         <boxGeometry args={[0.13, 0.55, 0.16]} />
         <meshStandardMaterial color="#26334d" />
       </mesh>
+      {debugCollision && <mesh rotation-x={-Math.PI / 2} position={[0, 0.035, 0]}>
+        <ringGeometry args={[0.3, 0.36, 24]} />
+        <meshBasicMaterial color="#ff4d5e" depthTest={false} />
+      </mesh>}
     </group>
   );
 }

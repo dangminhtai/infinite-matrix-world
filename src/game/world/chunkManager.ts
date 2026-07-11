@@ -14,6 +14,7 @@ export class ChunkManager {
   private readonly worker = new Worker(new URL("../workers/chunk.worker.ts", import.meta.url), { type: "module" });
   private requestId = 1;
   private generationId = 0;
+  private activeRadius = ACTIVE_RADIUS;
   private readonly requestKeys = new Map<number, string>();
   private readonly listeners = new Set<Listener>();
   private readonly errorListeners = new Set<ErrorListener>();
@@ -82,10 +83,14 @@ export class ChunkManager {
     return `${cx},${cy}`;
   }
 
+  setActiveRadius(radius: number): void {
+    this.activeRadius = Math.max(1, Math.min(4, Math.round(radius)));
+  }
+
   ensureAround(cx: bigint, cy: bigint): void {
     const wanted: [bigint, bigint, number][] = [];
-    for (let dy = -ACTIVE_RADIUS; dy <= ACTIVE_RADIUS; dy += 1) {
-      for (let dx = -ACTIVE_RADIUS; dx <= ACTIVE_RADIUS; dx += 1) {
+    for (let dy = -this.activeRadius; dy <= this.activeRadius; dy += 1) {
+      for (let dx = -this.activeRadius; dx <= this.activeRadius; dx += 1) {
         const x = cx + BigInt(dx);
         const y = cy + BigInt(dy);
         wanted.push([x, y, dx * dx + dy * dy]);

@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { CHUNK_SIZE } from "./constants";
 import type { ChunkPayload } from "./types";
@@ -12,6 +12,7 @@ import { usePointerControls } from "./controls/PointerControls";
 import { dampAngle, type MoveInput } from "./player/movement";
 import { sampleChunkHeight } from "./player/collision";
 import { GrassRing } from "./rendering/GrassRing";
+import type { GameSettings } from "./settings";
 
 function floorDiv(a: bigint, b: bigint): bigint {
   let q = a / b;
@@ -30,6 +31,8 @@ export type GameState = {
   verticalVelocity: number;
   grounded: boolean;
   movementState: "idle" | "walk" | "run" | "jump" | "fall";
+  health: number;
+  stamina: number;
   cameraYaw: number;
   cameraZoom: number;
   fps: number;
@@ -42,6 +45,8 @@ type PlayerInputState = {
   mobileRun: boolean;
 };
 
+const FLOATING_ORIGIN_THRESHOLD = CHUNK_SIZE * 4;
+
 function Scene({
   chunks,
   debug,
@@ -50,6 +55,9 @@ function Scene({
   inputRef,
   teleport,
   resetCameraToken,
+  settings,
+  paused,
+  debugCollision,
 }: {
   chunks: ChunkPayload[];
   debug: boolean;
@@ -58,6 +66,9 @@ function Scene({
   inputRef: MutableRefObject<PlayerInputState>;
   teleport: { x: bigint; y: bigint; token: number } | null;
   resetCameraToken: number;
+  settings: GameSettings;
+  paused: boolean;
+  debugCollision: boolean;
 }) {
   const chunkMap = useMemo(() => new Map(chunks.map((chunk) => [`${chunk.cx},${chunk.cy}`, chunk])), [chunks]);
   const game = useRef<GameState>({
@@ -70,11 +81,16 @@ function Scene({
     verticalVelocity: 0,
     grounded: true,
     movementState: "idle",
+    health: 100,
+    stamina: 100,
     cameraYaw: Math.PI * 0.75,
     cameraZoom: 18,
     fps: 0,
   });
   const target = useRef<{ x: bigint; y: bigint } | null>(null);
+  const pendingRebase = useRef<{ shiftX: number; shiftZ: number } | null>(null);
+  const pendingTeleport = useRef<{ tileX: bigint; tileY: bigint; localX: number; localZ: number } | null>(null);
+  const [renderOrigin, setRenderOrigin] = useState({ cx: 0n, cy: 0n });
   const cameraAngles = useRef<CameraState>({ yaw: Math.PI * 0.75, pitch: Math.PI / 5, distance: 18, targetHeight: 1.15 });
   const fpsRef = useRef({ frames: 0, elapsed: 0, fps: 0 });
   const { camera, raycaster, scene } = useThree();
@@ -82,28 +98,59 @@ function Scene({
   useEffect(() => {
     cameraAngles.current.yaw = Math.PI * 0.75;
     cameraAngles.current.pitch = Math.PI / 5;
-    cameraAngles.current.distance = 18;
-  }, [resetCameraToken]);
+    cameraAngles.current.distance = settings.gameplay.cameraDistance;
+  }, [resetCameraToken, settings.gameplay.cameraDistance]);
+
+  useEffect(() => {
+    cameraAngles.current.distance = settings.gameplay.cameraDistance;
+  }, [settings.gameplay.cameraDistance]);
 
   useEffect(() => {
     if (!teleport) return;
     const cx = floorDiv(teleport.x, BigInt(CHUNK_SIZE));
     const cy = floorDiv(teleport.y, BigInt(CHUNK_SIZE));
-    game.current.tileX = cx * BigInt(CHUNK_SIZE);
-    game.current.tileY = cy * BigInt(CHUNK_SIZE);
-    game.current.localX = Number(teleport.x - game.current.tileX);
-    game.current.localZ = Number(teleport.y - game.current.tileY);
-    game.current.verticalVelocity = 0;
-    game.current.grounded = true;
+    const tileX = cx * BigInt(CHUNK_SIZE);
+    const tileY = cy * BigInt(CHUNK_SIZE);
+    pendingTeleport.current = {
+      tileX,
+      tileY,
+      localX: Number(teleport.x - tileX),
+      localZ: Number(teleport.y - tileY),
+    };
+    pendingRebase.current = null;
+    setRenderOrigin({ cx, cy });
     target.current = null;
     onChunkChange(cx, cy);
   }, [onChunkChange, teleport]);
 
-  const rotate = useCallback((dx: number, dy: number) => {
-    cameraAngles.current.yaw -= dx * 0.006;
-    const clamped = clampCamera(cameraAngles.current.pitch + dy * 0.004, cameraAngles.current.distance);
+  useLayoutEffect(() => {
+    const teleportState = pendingTeleport.current;
+    if (teleportState) {
+      game.current.tileX = teleportState.tileX;
+      game.current.tileY = teleportState.tileY;
+      game.current.localX = teleportState.localX;
+      game.current.localZ = teleportState.localZ;
+      game.current.verticalVelocity = 0;
+      game.current.grounded = true;
+      pendingTeleport.current = null;
+      return;
+    }
+    const rebase = pendingRebase.current;
+    if (!rebase) return;
+    game.current.tileX += BigInt(rebase.shiftX);
+    game.current.tileY += BigInt(rebase.shiftZ);
+    game.current.localX -= rebase.shiftX;
+    game.current.localZ -= rebase.shiftZ;
+    pendingRebase.current = null;
+  }, [renderOrigin]);
+
+  const rotate = useCallback((dx: number, dy: number, pointerType: string) => {
+    const sensitivity = settings.gameplay.cameraSensitivity * (pointerType === "touch" ? settings.controls.touchCameraSensitivity : 1);
+    const verticalDirection = settings.gameplay.invertY ? -1 : 1;
+    cameraAngles.current.yaw -= dx * 0.006 * sensitivity;
+    const clamped = clampCamera(cameraAngles.current.pitch + dy * 0.004 * sensitivity * verticalDirection, cameraAngles.current.distance);
     cameraAngles.current.pitch = clamped.pitch;
-  }, []);
+  }, [settings.controls.touchCameraSensitivity, settings.gameplay.cameraSensitivity, settings.gameplay.invertY]);
 
   const zoom = useCallback((amount: number) => {
     const clamped = clampCamera(cameraAngles.current.pitch, cameraAngles.current.distance + amount * 0.02);
@@ -127,6 +174,15 @@ function Scene({
   usePointerControls(rotate, zoom, clickMove);
 
   useEffect(() => {
+    if (!paused) return;
+    inputRef.current.pressed.clear();
+    inputRef.current.joystick = { x: 0, y: 0 };
+    inputRef.current.jumpQueued = false;
+    inputRef.current.mobileRun = false;
+    target.current = null;
+  }, [inputRef, paused]);
+
+  useEffect(() => {
     const resetInput = () => {
       inputRef.current.pressed.clear();
       inputRef.current.joystick = { x: 0, y: 0 };
@@ -136,8 +192,9 @@ function Scene({
     };
     const down = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      if (["KeyW", "KeyA", "KeyS", "KeyD", "ShiftLeft", "ShiftRight"].includes(e.code)) inputRef.current.pressed.add(e.code);
-      if (e.code === "Space" && !e.repeat) {
+      const bindings = settings.controls;
+      if ([bindings.forward, bindings.backward, bindings.left, bindings.right, bindings.run].includes(e.code)) inputRef.current.pressed.add(e.code);
+      if (e.code === bindings.jump && !e.repeat) {
         e.preventDefault();
         inputRef.current.jumpQueued = true;
       }
@@ -158,7 +215,7 @@ function Scene({
       window.removeEventListener("blur", resetInput);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [inputRef]);
+  }, [inputRef, settings.controls]);
 
   useFrame((_, delta) => {
     fpsRef.current.frames += 1;
@@ -170,8 +227,8 @@ function Scene({
     }
     const state = game.current;
     const controls = inputRef.current;
-    const keyX = (controls.pressed.has("KeyD") ? 1 : 0) - (controls.pressed.has("KeyA") ? 1 : 0);
-    const keyY = (controls.pressed.has("KeyS") ? 1 : 0) - (controls.pressed.has("KeyW") ? 1 : 0);
+    const keyX = paused ? 0 : (controls.pressed.has(settings.controls.right) ? 1 : 0) - (controls.pressed.has(settings.controls.left) ? 1 : 0);
+    const keyY = paused ? 0 : (controls.pressed.has(settings.controls.backward) ? 1 : 0) - (controls.pressed.has(settings.controls.forward) ? 1 : 0);
     let inputX = Math.max(-1, Math.min(1, keyX + controls.joystick.x));
     let inputY = Math.max(-1, Math.min(1, keyY + controls.joystick.y));
     const inputLength = Math.hypot(inputX, inputY);
@@ -198,7 +255,8 @@ function Scene({
       worldDx = -Math.sin(cyaw) * forward + Math.cos(cyaw) * inputX;
       worldDz = -Math.cos(cyaw) * forward - Math.sin(cyaw) * inputX;
     }
-    const running = controls.mobileRun || controls.pressed.has("ShiftLeft") || controls.pressed.has("ShiftRight");
+    const requestedRun = settings.gameplay.autoRun || controls.mobileRun || controls.pressed.has(settings.controls.run);
+    const running = requestedRun && state.stamina > 0.1;
     const moving = worldDx !== 0 || worldDz !== 0;
     const speed = running ? 7.2 : 4.2;
     const currentWorldX = state.tileX + BigInt(Math.floor(state.localX));
@@ -223,6 +281,7 @@ function Scene({
       state.verticalVelocity = 6.8;
       state.grounded = false;
     }
+    state.stamina = Math.max(0, Math.min(100, state.stamina + (moved && running ? -20 : 12) * delta));
     controls.jumpQueued = false;
     if (!state.grounded) {
       state.verticalVelocity -= 18 * delta;
@@ -240,24 +299,19 @@ function Scene({
       : moved
         ? (running ? "run" : "walk")
         : "idle";
-    while (state.localX >= CHUNK_SIZE) {
-      state.tileX += BigInt(CHUNK_SIZE);
-      state.localX -= CHUNK_SIZE;
+    if (!pendingRebase.current && (Math.abs(state.localX) >= FLOATING_ORIGIN_THRESHOLD || Math.abs(state.localZ) >= FLOATING_ORIGIN_THRESHOLD)) {
+      const shiftX = Math.trunc(state.localX / CHUNK_SIZE) * CHUNK_SIZE;
+      const shiftZ = Math.trunc(state.localZ / CHUNK_SIZE) * CHUNK_SIZE;
+      pendingRebase.current = { shiftX, shiftZ };
+      setRenderOrigin({
+        cx: floorDiv(state.tileX + BigInt(shiftX), BigInt(CHUNK_SIZE)),
+        cy: floorDiv(state.tileY + BigInt(shiftZ), BigInt(CHUNK_SIZE)),
+      });
     }
-    while (state.localX < 0) {
-      state.tileX -= BigInt(CHUNK_SIZE);
-      state.localX += CHUNK_SIZE;
-    }
-    while (state.localZ >= CHUNK_SIZE) {
-      state.tileY += BigInt(CHUNK_SIZE);
-      state.localZ -= CHUNK_SIZE;
-    }
-    while (state.localZ < 0) {
-      state.tileY -= BigInt(CHUNK_SIZE);
-      state.localZ += CHUNK_SIZE;
-    }
-    const cx = floorDiv(state.tileX, BigInt(CHUNK_SIZE));
-    const cy = floorDiv(state.tileY, BigInt(CHUNK_SIZE));
+    const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
+    const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
+    const cx = floorDiv(worldTileX, BigInt(CHUNK_SIZE));
+    const cy = floorDiv(worldTileY, BigInt(CHUNK_SIZE));
     onChunkChange(cx, cy);
     state.cameraYaw = cameraAngles.current.yaw;
     state.cameraZoom = cameraAngles.current.distance;
@@ -265,13 +319,13 @@ function Scene({
     onStats(state);
   });
 
-  const originCx = floorDiv(game.current.tileX, BigInt(CHUNK_SIZE));
-  const originCy = floorDiv(game.current.tileY, BigInt(CHUNK_SIZE));
+  const originCx = renderOrigin.cx;
+  const originCy = renderOrigin.cy;
   return (
     <>
-      <WorldRenderer chunks={chunks} originCx={originCx} originCy={originCy} debug={debug} />
-      <GrassRing chunks={chunks} originCx={originCx} originCy={originCy} player={game} />
-      <Player state={game} />
+      <WorldRenderer chunks={chunks} originCx={originCx} originCy={originCy} debug={debug} graphics={settings.graphics} />
+      {settings.graphics.decorativeGrass && <GrassRing chunks={chunks} originCx={originCx} originCy={originCy} player={game} density={settings.graphics.vegetationDensity} />}
+      <Player state={game} debugCollision={debugCollision} />
       <ThirdPersonCamera
         player={game}
         angles={cameraAngles}
@@ -284,18 +338,21 @@ function Scene({
   );
 }
 
-export function GameCanvas(props: {
+export const GameCanvas = memo(function GameCanvas(props: {
   chunks: ChunkPayload[];
   debug: boolean;
   onChunkChange: (cx: bigint, cy: bigint) => void;
   onStats: (state: GameState) => void;
   teleport: { x: bigint; y: bigint; token: number } | null;
   resetCameraToken: number;
+  settings: GameSettings;
+  paused: boolean;
+  debugCollision: boolean;
 }) {
   const inputRef = useRef<PlayerInputState>({ pressed: new Set(), joystick: { x: 0, y: 0 }, jumpQueued: false, mobileRun: false });
   return (
     <div className="gameShell">
-      <Canvas shadows camera={{ position: [18, 18, 18], fov: 52 }} dpr={[1, 1.75]}>
+      <Canvas shadows={props.settings.graphics.shadowQuality !== "off"} camera={{ position: [18, 18, 18], fov: 52 }} dpr={[Math.min(1, props.settings.graphics.pixelRatio), props.settings.graphics.pixelRatio]}>
         <Scene
           chunks={props.chunks}
           debug={props.debug}
@@ -304,13 +361,20 @@ export function GameCanvas(props: {
           inputRef={inputRef}
           teleport={props.teleport}
           resetCameraToken={props.resetCameraToken}
+          settings={props.settings}
+          paused={props.paused}
+          debugCollision={props.debugCollision}
         />
       </Canvas>
-      <VirtualJoystick onChange={(input) => { inputRef.current.joystick = input; }} />
+      <VirtualJoystick
+        size={props.settings.controls.joystickSize}
+        opacity={props.settings.controls.joystickOpacity}
+        onChange={(input) => { inputRef.current.joystick = input; }}
+      />
       <MobileActionButtons
         onJump={() => { inputRef.current.jumpQueued = true; }}
         onRunChange={(running) => { inputRef.current.mobileRun = running; }}
       />
     </div>
   );
-}
+});

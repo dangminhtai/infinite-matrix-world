@@ -12,6 +12,7 @@ export type PerformanceStats = {
   estimatedTriangles: number;
   estimatedDrawCalls: number;
   avgPayloadBytes: number;
+  chunkPayloadBytes: number;
 };
 
 type PerformanceWithMemory = Performance & {
@@ -45,6 +46,7 @@ export function collectPerformanceStats(chunks: ChunkPayload[], fps: number): Pe
     estimatedTriangles: chunks.length * TERRAIN_VISUAL_SUBDIVISIONS * TERRAIN_VISUAL_SUBDIVISIONS * 2 + treeCount * 11 + rockCount * 20 + flowerCount * 8,
     estimatedDrawCalls: chunks.length + (treeCount ? 2 : 0) + (rockCount ? 1 : 0) + (flowerCount ? 1 : 0) + 2,
     avgPayloadBytes,
+    chunkPayloadBytes: chunks.reduce((sum, chunk) => sum + chunk.payloadBytes, 0),
   };
 }
 
@@ -53,7 +55,7 @@ export function PerformancePanel({ stats }: { stats: PerformanceStats }) {
     <section className="sidePanel performancePanel">
       <h2>Performance</h2>
       <span>FPS {stats.fps}</span>
-      <span>RAM {stats.jsHeap}</span>
+      <span>JS heap {stats.jsHeap}</span>
       <span>Worker avg {stats.workerAvgMs.toFixed(1)} ms</span>
       <span>Worker max {stats.workerMaxMs.toFixed(1)} ms</span>
       <span>Triangles ~{stats.estimatedTriangles.toLocaleString()}</span>

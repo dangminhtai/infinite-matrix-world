@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import type { ChunkPayload } from "../types";
 
-export function TerrainChunk({ chunk, originCx, originCy }: { chunk: ChunkPayload; originCx: bigint; originCy: bigint }) {
+export function TerrainChunk({ chunk, originCx, originCy, castShadow }: { chunk: ChunkPayload; originCx: bigint; originCy: bigint; castShadow: boolean }) {
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(chunk.terrainPositions, 3));
@@ -19,7 +19,7 @@ export function TerrainChunk({ chunk, originCx, originCy }: { chunk: ChunkPayloa
   }, [chunk.cx, chunk.cy, chunk.size, originCx, originCy]);
 
   return (
-    <mesh geometry={geometry} position={position} userData={{ terrain: true }} receiveShadow castShadow>
+    <mesh geometry={geometry} position={position} userData={{ terrain: true }} receiveShadow castShadow={castShadow}>
       <meshStandardMaterial vertexColors roughness={0.9} />
     </mesh>
   );

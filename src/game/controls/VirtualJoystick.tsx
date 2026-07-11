@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { MoveInput } from "../player/movement";
 
-export function VirtualJoystick({ onChange }: { onChange: (input: MoveInput) => void }) {
+export function VirtualJoystick({ onChange, size, opacity }: { onChange: (input: MoveInput) => void; size: number; opacity: number }) {
   const base = useRef<HTMLDivElement>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
 
@@ -28,6 +28,7 @@ export function VirtualJoystick({ onChange }: { onChange: (input: MoveInput) => 
     <div
       ref={base}
       className="joystick"
+      style={{ width: size, height: size, opacity }}
       onPointerDown={(e) => {
         e.stopPropagation();
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -46,7 +47,7 @@ export function VirtualJoystick({ onChange }: { onChange: (input: MoveInput) => 
         release();
       }}
     >
-      <div className="joystickKnob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+      <div className="joystickKnob" style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }} />
     </div>
   );
 }

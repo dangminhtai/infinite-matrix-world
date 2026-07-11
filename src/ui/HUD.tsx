@@ -1,64 +1,22 @@
-import type { ChunkPayload, WorkerStatus } from "../game/types";
-
 export function HUD({
-  worldX,
-  worldY,
-  chunkX,
-  chunkY,
-  chunks,
-  pending,
-  status,
-  seed,
-  debug,
-  tests,
-  onSeed,
-  onTeleport,
-  onClear,
-  onDebug,
-  onResetCamera,
-  onPerformance,
-  onExploration,
+  health,
+  stamina,
+  showQuestTracker,
+  onSettings,
 }: {
-  worldX: string;
-  worldY: string;
-  chunkX: string;
-  chunkY: string;
-  chunks: ChunkPayload[];
-  pending: number;
-  status: WorkerStatus;
-  seed: string[][];
-  debug: boolean;
-  tests: string[];
-  onSeed: () => void;
-  onTeleport: () => void;
-  onClear: () => void;
-  onDebug: () => void;
-  onResetCamera: () => void;
-  onPerformance: () => void;
-  onExploration: () => void;
+  health: number;
+  stamina: number;
+  showQuestTracker: boolean;
+  onSettings: () => void;
 }) {
-  const current = chunks[0];
   return (
-    <div className="hud">
-      <div className="hudStats">
-        <span>World {worldX}, {worldY}</span>
-        <span>Chunk {chunkX}, {chunkY}</span>
-        <span>Render {chunks.length}</span>
-        <span>Queue {pending}</span>
-        <span>Worker {status}</span>
-        {debug && <span>Hash {current?.hash ?? "n/a"}</span>}
+    <div className="gameHud">
+      <div className="vitals" aria-label="Trạng thái nhân vật">
+        <div className="vitalRow"><span>HP</span><div className="vitalTrack"><i className="healthFill" style={{ width: `${health}%` }} /></div></div>
+        <div className="vitalRow"><span>ST</span><div className="vitalTrack"><i className="staminaFill" style={{ width: `${stamina}%` }} /></div></div>
       </div>
-      <div className="hudSeed">Seed {seed.map((row) => `[${row.join(", ")}]`).join(" ")}</div>
-      {debug && <div className="hudTests">Tests: {tests.join(", ")}</div>}
-      <div className="hudButtons">
-        <button onClick={onSeed}>Seed</button>
-        <button onClick={onTeleport}>Teleport</button>
-        <button onClick={onClear}>Clear cache</button>
-        <button onClick={onResetCamera}>Reset camera</button>
-        <button onClick={onDebug}>{debug ? "Hide debug" : "Debug"}</button>
-        <button onClick={onPerformance}>Performance</button>
-        <button onClick={onExploration}>Journey</button>
-      </div>
+      {showQuestTracker && <div className="questTracker"><span>Mục tiêu</span><strong>Khám phá thế giới vô hạn</strong></div>}
+      <button className="settingsButton" type="button" onClick={onSettings} title="Cài đặt" aria-label="Mở cài đặt">⚙</button>
     </div>
   );
 }

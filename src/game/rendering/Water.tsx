@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import type { GameSettings } from "../settings";
 
 const waterVertexShader = `
   uniform float uTime;
@@ -27,7 +28,7 @@ const waterFragmentShader = `
   }
 `;
 
-export function Water() {
+export function Water({ quality }: { quality: GameSettings["graphics"]["waterQuality"] }) {
   const ref = useRef<THREE.Mesh>(null);
   const material = useMemo(
     () =>
@@ -46,7 +47,7 @@ export function Water() {
   });
   return (
     <mesh ref={ref} rotation-x={-Math.PI / 2} position={[0, -0.14, 0]} receiveShadow>
-      <planeGeometry args={[260, 260, 48, 48]} />
+      <planeGeometry args={[260, 260, quality === "high" ? 64 : quality === "medium" ? 32 : 12, quality === "high" ? 64 : quality === "medium" ? 32 : 12]} />
       <primitive object={material} attach="material" />
     </mesh>
   );

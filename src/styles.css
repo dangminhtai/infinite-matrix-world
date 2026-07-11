@@ -35,6 +35,299 @@ button:hover {
   background: #fff;
 }
 
+.gameHud {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.vitals {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 218px;
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  background: rgba(10, 20, 25, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+}
+
+.vitalRow {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: #f4f7f8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vitalTrack {
+  height: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+}
+
+.vitalTrack i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 180ms ease-out;
+}
+
+.healthFill { background: #db5262; }
+.staminaFill { background: #e3b84f; }
+
+.questTracker {
+  position: absolute;
+  left: 18px;
+  top: 94px;
+  display: grid;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 3px solid #e3b84f;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.questTracker span {
+  color: #f0c85e;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.questTracker strong { font-size: 13px; }
+
+.settingsButton,
+.iconButton {
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.settingsButton {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 42px;
+  height: 42px;
+  pointer-events: auto;
+  font-size: 22px;
+  background: rgba(10, 20, 25, 0.74);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.settingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(7, 13, 16, 0.72);
+}
+
+.settingsPanel {
+  width: min(920px, 100%);
+  height: min(700px, calc(100vh - 40px));
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: #182229;
+  color: #edf2f4;
+  border: 1px solid #40515a;
+  border-radius: 8px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+}
+
+.settingsHeader {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #33434c;
+}
+
+.settingsHeader h2 {
+  margin: 2px 0 0;
+  font-size: 22px;
+}
+
+.settingsEyebrow {
+  color: #83c6a1;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.iconButton {
+  width: 36px;
+  height: 36px;
+  color: #edf2f4;
+  background: transparent;
+  border-color: #52636c;
+  font-size: 24px;
+}
+
+.settingsTabs {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 12px 10px;
+  background: #111a1f;
+  border-right: 1px solid #33434c;
+}
+
+.settingsTabs button {
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  color: #bac6cb;
+  background: transparent;
+  border-color: transparent;
+}
+
+.settingsTabs button.active {
+  color: #f7fbfc;
+  background: #294039;
+  border-color: #4f7463;
+}
+
+.settingsBody {
+  min-width: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+}
+
+.settingsSection {
+  width: min(650px, 100%);
+  display: grid;
+  gap: 13px;
+}
+
+.settingsSection h3 {
+  margin: 4px 0 3px;
+  font-size: 15px;
+}
+
+.settingRange,
+.settingToggle,
+.settingSelect,
+.worldSeed {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #2c3a42;
+  font-size: 13px;
+}
+
+.settingRange > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settingRange output { color: #8fd0aa; }
+.settingRange input { width: 100%; accent-color: #67b88d; }
+
+.settingToggle input {
+  justify-self: end;
+  width: 38px;
+  height: 20px;
+  accent-color: #67b88d;
+}
+
+.settingSelect select {
+  width: 100%;
+  padding: 8px 10px;
+  color: #edf2f4;
+  background: #111a1f;
+  border: 1px solid #46565f;
+  border-radius: 6px;
+}
+
+.worldSeed code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #9ed6b6;
+  font-size: 12px;
+}
+
+.settingsCommands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settingsCommands button,
+.settingsFooter button {
+  color: #e9eff1;
+  background: #26343b;
+  border-color: #46575f;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.metricsGrid > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  background: #111a1f;
+  border: 1px solid #2f4048;
+  border-radius: 6px;
+  color: #aab9bf;
+  font-size: 11px;
+}
+
+.metricsGrid strong {
+  overflow-wrap: anywhere;
+  color: #f1f5f6;
+  font-size: 12px;
+}
+
+.testResult {
+  margin: 0;
+  color: #9ed6b6;
+  font-size: 12px;
+}
+
+.settingsFooter {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #33434c;
+  background: #111a1f;
+}
+
+.settingsFooter > div {
+  display: flex;
+  gap: 8px;
+}
+
+.settingsFooter .primaryButton {
+  color: #10251a;
+  background: #79c99d;
+  border-color: #9bdbb8;
+  font-weight: 700;
+}
+
 .hud {
   position: fixed;
   top: 12px;
@@ -120,6 +413,7 @@ button:hover {
 
 .joystick {
   position: fixed;
+  display: none;
   left: 22px;
   bottom: 22px;
   width: 128px;
@@ -133,8 +427,8 @@ button:hover {
 
 .joystickKnob {
   position: absolute;
-  left: 42px;
-  top: 42px;
+  left: 50%;
+  top: 50%;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -243,6 +537,71 @@ button:hover {
 }
 
 @media (max-width: 720px) {
+  .vitals {
+    top: 10px;
+    left: 10px;
+    width: 176px;
+  }
+
+  .questTracker {
+    top: 82px;
+    left: 10px;
+    max-width: calc(100vw - 132px);
+  }
+
+  .settingsButton {
+    right: 10px;
+    bottom: 94px;
+  }
+
+  .settingsOverlay { padding: 0; }
+
+  .settingsPanel {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+
+  .settingsHeader { min-height: 64px; }
+
+  .settingsTabs {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    overflow-x: auto;
+    padding: 7px 8px;
+    border-right: 0;
+    border-bottom: 1px solid #33434c;
+  }
+
+  .settingsTabs button {
+    width: auto;
+    flex: 0 0 auto;
+    text-align: center;
+  }
+
+  .settingsBody {
+    grid-row: 3;
+    padding: 16px;
+  }
+
+  .settingRange,
+  .settingToggle,
+  .settingSelect,
+  .worldSeed {
+    grid-template-columns: minmax(0, 1fr) minmax(130px, 0.8fr);
+    gap: 10px;
+  }
+
+  .metricsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .settingsFooter {
+    grid-row: 4;
+  }
+
   .hud {
     top: 8px;
     left: 8px;
@@ -266,8 +625,6 @@ button:hover {
   }
 
   .joystickKnob {
-    left: 36px;
-    top: 36px;
     width: 40px;
     height: 40px;
   }
@@ -305,12 +662,29 @@ button:hover {
 }
 
 @media (pointer: coarse) {
+  .joystick {
+    display: block;
+  }
+
   .mobileActions {
     display: flex;
   }
 }
 
 @media (max-width: 430px) {
+  .questTracker strong { font-size: 12px; }
+
+  .settingRange,
+  .settingToggle,
+  .settingSelect,
+  .worldSeed {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .settingToggle input { justify-self: start; }
+  .metricsGrid { grid-template-columns: 1fr 1fr; }
+
   .hudStats span:nth-child(n + 4),
   .hudSeed {
     display: none;

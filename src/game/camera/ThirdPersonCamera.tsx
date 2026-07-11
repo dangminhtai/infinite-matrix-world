@@ -31,6 +31,7 @@ export function ThirdPersonCamera({
   const desired = useMemo(() => new THREE.Vector3(), []);
   const smoothTarget = useMemo(() => new THREE.Vector3(), []);
   const desiredTarget = useMemo(() => new THREE.Vector3(), []);
+  const targetDelta = useMemo(() => new THREE.Vector3(), []);
   const previousOrigin = useRef({ cx: originCx, cy: originCy });
   const previousTeleportToken = useRef(teleportToken);
   const { camera } = useThree();
@@ -58,7 +59,10 @@ export function ThirdPersonCamera({
       previousOrigin.current.cy = originCy;
     }
     desiredTarget.set(state.localX, state.height + cameraState.targetHeight, state.localZ);
+    targetDelta.copy(smoothTarget);
     smoothTarget.lerp(desiredTarget, 1 - Math.exp(-12 * delta));
+    targetDelta.subVectors(smoothTarget, targetDelta);
+    camera.position.add(targetDelta);
     desired.set(
       smoothTarget.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * cameraState.distance,
       smoothTarget.y + Math.sin(cameraState.pitch) * cameraState.distance,

@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 
-const INTERACTIVE_SELECTOR = "button,input,select,textarea,.modal,.hud,.sidePanel,.minimap,.joystick,.joystickKnob";
+const INTERACTIVE_SELECTOR = "button,input,select,textarea,.modal,.settingsOverlay,.gameHud,.sidePanel,.minimap,.joystick,.joystickKnob";
 
-export function usePointerControls(onRotate: (dx: number, dy: number) => void, onZoom: (amount: number) => void, onClickMove: (x: number, y: number) => void) {
+export function usePointerControls(onRotate: (dx: number, dy: number, pointerType: string) => void, onZoom: (amount: number) => void, onClickMove: (x: number, y: number) => void) {
   useEffect(() => {
     let draggingRight = false;
     let cameraPointerId: number | null = null;
@@ -37,7 +37,7 @@ export function usePointerControls(onRotate: (dx: number, dy: number) => void, o
         return;
       }
       if (!draggingRight || cameraPointerId !== e.pointerId || (e.pointerType === "mouse" && e.buttons === 0)) return;
-      onRotate(e.clientX - lastX, e.clientY - lastY);
+      onRotate(e.clientX - lastX, e.clientY - lastY, e.pointerType);
       lastX = e.clientX;
       lastY = e.clientY;
     };

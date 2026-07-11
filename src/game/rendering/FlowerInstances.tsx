@@ -2,14 +2,14 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ChunkPayload } from "../types";
 
-export function FlowerInstances({ chunks, originCx, originCy }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint }) {
+export function FlowerInstances({ chunks, originCx, originCy, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; density: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const instances = useMemo(() => chunks.flatMap((chunk) => {
     const baseX = Number(BigInt(chunk.cx) - originCx) * chunk.size;
     const baseZ = Number(BigInt(chunk.cy) - originCy) * chunk.size;
-    return chunk.flowers.map((flower) => ({ ...flower, x: flower.x + baseX, z: flower.z + baseZ }));
-  }), [chunks, originCx, originCy]);
+    return chunk.flowers.slice(0, Math.ceil(chunk.flowers.length * density)).map((flower) => ({ ...flower, x: flower.x + baseX, z: flower.z + baseZ }));
+  }), [chunks, density, originCx, originCy]);
   useLayoutEffect(() => {
     instances.forEach((flower, i) => {
       dummy.position.set(flower.x, flower.y + 0.08, flower.z);

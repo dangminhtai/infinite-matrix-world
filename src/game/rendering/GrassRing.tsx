@@ -46,11 +46,13 @@ export function GrassRing({
   originCx,
   originCy,
   player,
+  density,
 }: {
   chunks: ChunkPayload[];
   originCx: bigint;
   originCy: bigint;
   player: MutableRefObject<GameState>;
+  density: number;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -78,7 +80,7 @@ export function GrassRing({
         const wy = worldY + BigInt(dz);
         const sample = sampleGrassCell(chunkMap, wx, wy);
         if (!sample) continue;
-        if (random01(wx, wy, 0x67a55n) > sample.density) continue;
+        if (random01(wx, wy, 0x67a55n) > sample.density * density) continue;
 
         const jitterX = random01(wx, wy, 0x123n) - 0.5;
         const jitterZ = random01(wx, wy, 0x456n) - 0.5;

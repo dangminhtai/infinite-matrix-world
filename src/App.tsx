@@ -8,9 +8,11 @@ import { SeedEditor } from "./ui/SeedEditor";
 import { TeleportDialog } from "./ui/TeleportDialog";
 import { LoadingOverlay } from "./ui/LoadingOverlay";
 import { Minimap } from "./ui/Minimap";
-import { collectPerformanceStats, PerformancePanel } from "./ui/PerformancePanel";
-import { emptyExploration, ExplorationPanel, type ExplorationStats } from "./ui/ExplorationPanel";
+import { collectPerformanceStats } from "./ui/PerformancePanel";
+import { emptyExploration, type ExplorationStats } from "./ui/ExplorationPanel";
 import { BIOME_NAMES } from "./game/types";
+import { loadSettings, saveSettings, type GameSettings } from "./game/settings";
+import { SettingsMenu } from "./ui/SettingsMenu";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -51,15 +53,22 @@ function addBounded(set: Set<string>, value: string, maxSize: number): boolean {
 
 export default function App() {
   const [seed, setSeed] = useState(defaultSeedStrings);
+  const [settings, setSettings] = useState(loadSettings);
   const seedKey = JSON.stringify(seed);
-  const manager = useMemo(() => new ChunkManager(seed), []);
+  const manager = useMemo(() => {
+    const next = new ChunkManager(seed);
+    next.setActiveRadius(settings.graphics.renderDistance);
+    return next;
+  }, []);
   const [chunks, setChunks] = useState<ChunkPayload[]>([]);
   const [status, setStatus] = useState<WorkerStatus>("idle");
   const [error, setError] = useState("");
   const [debug, setDebug] = useState(false);
+  const [debugCollision, setDebugCollision] = useState(false);
   const [tests, setTests] = useState<string[]>([]);
   const [showSeed, setShowSeed] = useState(false);
   const [showTeleport, setShowTeleport] = useState(false);
+  const [showSettings, setShowSettings] = useState(() => import.meta.env.DEV && new URLSearchParams(window.location.search).has("settings"));
   const [pending, setPending] = useState(0);
   const [stats, setStats] = useState({
     worldX: "0",
@@ -70,12 +79,14 @@ export default function App() {
     offsetY: 0,
     chunkX: "0",
     chunkY: "0",
+    originX: "0",
+    originY: "0",
     cameraYaw: 0,
     cameraZoom: 23,
     fps: 0,
+    health: 100,
+    stamina: 100,
   });
-  const [showPerformance, setShowPerformance] = useState(false);
-  const [showExploration, setShowExploration] = useState(false);
   const [resetCameraToken, setResetCameraToken] = useState(0);
   const [exploration, setExploration] = useState<ExplorationStats>(() => {
     const saved = localStorage.getItem(`ihmw.exploration.${seedKey}`);
@@ -94,6 +105,23 @@ export default function App() {
   const seenDecorKeys = useRef(new Set<string>());
 
   const performanceStats = useMemo(() => collectPerformanceStats(chunks, stats.fps), [chunks, stats.fps]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (showSeed) {
+        setShowSeed(false);
+        return;
+      }
+      if (showTeleport) {
+        setShowTeleport(false);
+        return;
+      }
+      setShowSettings((current) => !current);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showSeed, showTeleport]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -160,6 +188,40 @@ export default function App() {
     setStatus("loading");
   }, [manager, stats.chunkX, stats.chunkY]);
 
+  const teleportTo = useCallback((x: bigint, y: bigint) => {
+    setTeleport({ x, y, token: Date.now() });
+    setExploration((current) => {
+      const next = { ...current, teleports: current.teleports + 1 };
+      localStorage.setItem(`ihmw.exploration.${seedKey}`, JSON.stringify(next));
+      return next;
+    });
+    const cx = x >= 0n ? x / 16n : (x - 15n) / 16n;
+    const cy = y >= 0n ? y / 16n : (y - 15n) / 16n;
+    lastChunk.current = `${cx},${cy}`;
+    manager.teleportTo(cx, cy);
+    setChunks([]);
+    setStatus("loading");
+    setPending(manager.pending.size);
+  }, [manager, seedKey]);
+
+  const applySettings = useCallback((next: GameSettings) => {
+    saveSettings(next);
+    setSettings(next);
+    manager.setActiveRadius(next.graphics.renderDistance);
+    const cx = BigInt(stats.chunkX);
+    const cy = BigInt(stats.chunkY);
+    manager.ensureAround(cx, cy);
+    setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
+    setPending(manager.pending.size);
+  }, [manager, stats.chunkX, stats.chunkY]);
+
+  const runSelfTests = useCallback(() => {
+    void import("./game/world/selfTest").then(({ selfTest }) => setTests(selfTest())).catch((err: unknown) => {
+      const e = err instanceof Error ? err : new Error(String(err));
+      setError(e.stack ?? e.message);
+    });
+  }, []);
+
   const resetExploration = useCallback(() => {
     const next = emptyExploration(seedKey);
     seenDecorKeys.current.clear();
@@ -168,7 +230,7 @@ export default function App() {
     setExploration(next);
   }, [seedKey]);
 
-  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number }) => {
+  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number }) => {
     const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const offsetX = state.localX - Math.floor(state.localX);
@@ -176,7 +238,7 @@ export default function App() {
     const chunkX = worldTileX >= 0n ? worldTileX / 16n : (worldTileX - 15n) / 16n;
     const chunkY = worldTileY >= 0n ? worldTileY / 16n : (worldTileY - 15n) / 16n;
     const now = performance.now();
-    if (now - lastStatsAt.current >= 100) {
+    if (now - lastStatsAt.current >= 250) {
       lastStatsAt.current = now;
       setStats({
         worldX: formatWorldCoordinate(state.tileX, state.localX),
@@ -187,9 +249,13 @@ export default function App() {
         offsetY,
         chunkX: chunkX.toString(),
         chunkY: chunkY.toString(),
+        originX: state.tileX.toString(),
+        originY: state.tileY.toString(),
         cameraYaw: state.cameraYaw,
         cameraZoom: state.cameraZoom,
         fps: state.fps,
+        health: state.health,
+        stamina: state.stamina,
       });
     }
     if (now - lastExplorationAt.current < 1500) return;
@@ -232,44 +298,36 @@ export default function App() {
 
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} />
+      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={settings} paused={showSettings || showSeed || showTeleport} />
       <HUD
-        worldX={stats.worldX}
-        worldY={stats.worldY}
-        chunkX={stats.chunkX}
-        chunkY={stats.chunkY}
-        chunks={chunks}
-        pending={pending}
-        status={status}
-        seed={seed}
-        debug={debug}
-        tests={tests}
-        onSeed={() => setShowSeed(true)}
-        onTeleport={() => setShowTeleport(true)}
-        onClear={clearCache}
-        onDebug={() => setDebug((v) => !v)}
-        onResetCamera={() => setResetCameraToken((v) => v + 1)}
-        onPerformance={() => setShowPerformance((v) => !v)}
-        onExploration={() => setShowExploration((v) => !v)}
+        health={stats.health}
+        stamina={stats.stamina}
+        showQuestTracker={settings.gameplay.showQuestTracker}
+        onSettings={() => setShowSettings(true)}
       />
-      <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} cameraYaw={stats.cameraYaw} />
-      {showPerformance && <PerformancePanel stats={performanceStats} />}
-      {showExploration && <ExplorationPanel stats={exploration} onReset={resetExploration} />}
+      {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} cameraYaw={stats.cameraYaw} />}
+      {showSettings && <SettingsMenu
+        settings={settings}
+        seed={seed}
+        performance={performanceStats}
+        developer={{ worldX: stats.worldX, worldY: stats.worldY, chunkX: stats.chunkX, chunkY: stats.chunkY, originX: stats.originX, originY: stats.originY, loadedChunks: chunks.length, pendingChunks: pending, cacheSize: manager.generated.size, status, tests }}
+        exploration={exploration}
+        debug={debug}
+        debugCollision={debugCollision}
+        onApply={applySettings}
+        onClose={() => setShowSettings(false)}
+        onOpenSeed={() => { setShowSettings(false); setShowSeed(true); }}
+        onOpenTeleport={() => { setShowSettings(false); setShowTeleport(true); }}
+        onResetPosition={() => teleportTo(8n, 8n)}
+        onClearCache={clearCache}
+        onResetCamera={() => setResetCameraToken((value) => value + 1)}
+        onToggleDebug={() => setDebug((value) => !value)}
+        onToggleCollisionDebug={() => setDebugCollision((value) => !value)}
+        onRunTests={runSelfTests}
+        onResetExploration={resetExploration}
+      />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
-      {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={(x, y) => {
-        setTeleport({ x, y, token: Date.now() });
-        setExploration((current) => {
-          const next = { ...current, teleports: current.teleports + 1 };
-          localStorage.setItem(`ihmw.exploration.${seedKey}`, JSON.stringify(next));
-          return next;
-        });
-        const cx = x >= 0n ? x / 16n : (x - 15n) / 16n;
-        const cy = y >= 0n ? y / 16n : (y - 15n) / 16n;
-        lastChunk.current = `${cx},${cy}`;
-        manager.teleportTo(cx, cy);
-        setStatus("loading");
-        setPending(manager.pending.size);
-      }} />}
+      {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
       {status === "loading" && chunks.length === 0 && <LoadingOverlay text="Đang sinh chunk bằng Web Worker..." />}
       {error && <pre className="errorOverlay">{error}</pre>}
     </main>

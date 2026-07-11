@@ -2,14 +2,14 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ChunkPayload } from "../types";
 
-export function TreeInstances({ chunks, originCx, originCy }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint }) {
+export function TreeInstances({ chunks, originCx, originCy, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; density: number }) {
   const leavesRef = useRef<THREE.InstancedMesh>(null);
   const trunksRef = useRef<THREE.InstancedMesh>(null);
   const instances = useMemo(() => chunks.flatMap((chunk) => {
     const baseX = Number(BigInt(chunk.cx) - originCx) * chunk.size;
     const baseZ = Number(BigInt(chunk.cy) - originCy) * chunk.size;
-    return chunk.trees.map((tree) => ({ ...tree, x: tree.x + baseX, z: tree.z + baseZ }));
-  }), [chunks, originCx, originCy]);
+    return chunk.trees.slice(0, Math.ceil(chunk.trees.length * density)).map((tree) => ({ ...tree, x: tree.x + baseX, z: tree.z + baseZ }));
+  }), [chunks, density, originCx, originCy]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   useLayoutEffect(() => {
     instances.forEach((tree, i) => {

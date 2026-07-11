@@ -2,14 +2,14 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ChunkPayload } from "../types";
 
-export function RockInstances({ chunks, originCx, originCy }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint }) {
+export function RockInstances({ chunks, originCx, originCy, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; density: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const instances = useMemo(() => chunks.flatMap((chunk) => {
     const baseX = Number(BigInt(chunk.cx) - originCx) * chunk.size;
     const baseZ = Number(BigInt(chunk.cy) - originCy) * chunk.size;
-    return chunk.rocks.map((rock) => ({ ...rock, x: rock.x + baseX, z: rock.z + baseZ }));
-  }), [chunks, originCx, originCy]);
+    return chunk.rocks.slice(0, Math.ceil(chunk.rocks.length * density)).map((rock) => ({ ...rock, x: rock.x + baseX, z: rock.z + baseZ }));
+  }), [chunks, density, originCx, originCy]);
   useLayoutEffect(() => {
     instances.forEach((rock, i) => {
       dummy.position.set(rock.x, rock.y + 0.15 * rock.scale, rock.z);
