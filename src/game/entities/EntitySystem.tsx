@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { Suspense, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { CHUNK_SIZE } from "../constants";
@@ -7,6 +7,8 @@ import type { ChunkPayload } from "../types";
 import { addInventoryItem, addModification, loadWorldSave, saveWorld, type Inventory } from "../core/SaveManager";
 import { spawnChunkEntities, type SpawnedEntity } from "../spawn/deterministicSpawn";
 import type { MapEnemy } from "../map/types";
+import { EntityModelErrorBoundary } from "./EntityModelErrorBoundary";
+import { SlimeInstances, type SlimeInstancesHandle, type SlimeKind } from "./SlimeInstances";
 
 type RuntimeEntity = SpawnedEntity & {
   hp: number;
@@ -29,6 +31,10 @@ function entityLabel(entity: RuntimeEntity): string {
   if (entity.kind === "chest") return "Mở rương";
   if (entity.kind === "healing") return "Hồi phục";
   return "";
+}
+
+function slimeKind(entity: RuntimeEntity): SlimeKind {
+  return Math.min(2, Math.floor((entity.phase / (Math.PI * 2)) * 3)) as SlimeKind;
 }
 
 export function EntitySystem({
@@ -60,6 +66,7 @@ export function EntitySystem({
   const chestRef = useRef<THREE.InstancedMesh>(null);
   const healingRef = useRef<THREE.InstancedMesh>(null);
   const enemyRef = useRef<THREE.InstancedMesh>(null);
+  const slimeRef = useRef<SlimeInstancesHandle>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const saveRef = useRef(loadWorldSave(seedKey));
   const entitiesRef = useRef(new Map<string, RuntimeEntity>());
@@ -68,6 +75,7 @@ export function EntitySystem({
   const skillReadyAt = useRef(0);
   const lastMapUpdateAt = useRef(0);
   const spawns = useMemo(() => chunks.flatMap(spawnChunkEntities), [chunks]);
+  const hasEnemySpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "enemy"), [spawns]);
 
   useEffect(() => {
     saveRef.current = loadWorldSave(seedKey);
@@ -106,6 +114,7 @@ export function EntitySystem({
     let chestCount = 0;
     let healingCount = 0;
     let enemyCount = 0;
+    const slimeCounts: [number, number, number] = [0, 0, 0];
     let nearestInteraction: RuntimeEntity | null = null;
     let nearestInteractionDistance = Infinity;
     let nearestEnemy: RuntimeEntity | null = null;
@@ -174,9 +183,16 @@ export function EntitySystem({
         healingRef.current?.setMatrixAt(healingCount++, dummy.matrix);
       } else {
         dummy.position.y += Math.sin(now * 3 + entity.phase) * 0.06;
-        dummy.scale.setScalar(0.55);
+        dummy.scale.setScalar(1);
         dummy.updateMatrix();
-        enemyRef.current?.setMatrixAt(enemyCount++, dummy.matrix);
+        if (slimeRef.current) {
+          const kind = slimeKind(entity);
+          slimeRef.current.setMatrixAt(kind, slimeCounts[kind]++, dummy.matrix);
+        } else {
+          dummy.scale.setScalar(0.55);
+          dummy.updateMatrix();
+          enemyRef.current?.setMatrixAt(enemyCount++, dummy.matrix);
+        }
         mapEnemies.push({
           id: entity.id,
           worldX: entity.worldX.toString(),
@@ -255,6 +271,7 @@ export function EntitySystem({
     updateMesh(chestRef.current, chestCount);
     updateMesh(healingRef.current, healingCount);
     updateMesh(enemyRef.current, enemyCount);
+    slimeRef.current?.commit(slimeCounts);
   });
 
   return <group>
@@ -262,5 +279,10 @@ export function EntitySystem({
     <instancedMesh ref={chestRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#b57a37" roughness={0.72} /></instancedMesh>
     <instancedMesh ref={healingRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><cylinderGeometry args={[0.55, 0.55, 1, 8]} /><meshStandardMaterial color="#79df9a" emissive="#225f3b" emissiveIntensity={0.65} /></instancedMesh>
     <instancedMesh ref={enemyRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} castShadow frustumCulled={false}><dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#b84d69" roughness={0.62} /></instancedMesh>
+    {hasEnemySpawns && <EntityModelErrorBoundary>
+      <Suspense fallback={null}>
+        <SlimeInstances ref={slimeRef} maxCount={MAX_ACTIVE_ENTITIES} />
+      </Suspense>
+    </EntityModelErrorBoundary>}
   </group>;
 }

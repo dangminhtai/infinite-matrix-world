@@ -1,7 +1,10 @@
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef, type MutableRefObject } from "react";
+import { Suspense, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import type { GameState } from "../GameCanvas";
+import { PlayerGltfModel } from "./PlayerGltfModel";
+import { PlayerModelErrorBoundary } from "./PlayerModelErrorBoundary";
+import { PlayerProceduralModel } from "./PlayerProceduralModel";
 
 export function Player({ state, debugCollision }: { state: MutableRefObject<GameState>; debugCollision: boolean }) {
   const group = useRef<THREE.Group>(null);
@@ -9,7 +12,6 @@ export function Player({ state, debugCollision }: { state: MutableRefObject<Game
   const rightLeg = useRef<THREE.Mesh>(null);
   const leftArm = useRef<THREE.Mesh>(null);
   const rightArm = useRef<THREE.Mesh>(null);
-  const color = useMemo(() => new THREE.Color("#f6d7b0"), []);
   useFrame(({ clock }) => {
     const movementState = state.current.movementState;
     const climbing = movementState === "climb" || movementState === "climbIdle";
@@ -32,30 +34,11 @@ export function Player({ state, debugCollision }: { state: MutableRefObject<Game
   });
   return (
     <group ref={group} position={[state.current.localX, state.current.height, state.current.localZ]} rotation-y={state.current.yaw}>
-      <mesh position={[0, 0.8, 0]} castShadow>
-        <capsuleGeometry args={[0.28, 0.5, 4, 8]} />
-        <meshStandardMaterial color="#3d6fd9" roughness={0.75} />
-      </mesh>
-      <mesh position={[0, 1.35, 0]} castShadow>
-        <sphereGeometry args={[0.24, 12, 10]} />
-        <meshStandardMaterial color={color} roughness={0.8} />
-      </mesh>
-      <mesh ref={leftArm} position={[-0.35, 0.86, 0]} castShadow>
-        <boxGeometry args={[0.12, 0.5, 0.14]} />
-        <meshStandardMaterial color="#3d6fd9" roughness={0.75} />
-      </mesh>
-      <mesh ref={rightArm} position={[0.35, 0.86, 0]} castShadow>
-        <boxGeometry args={[0.12, 0.5, 0.14]} />
-        <meshStandardMaterial color="#3d6fd9" roughness={0.75} />
-      </mesh>
-      <mesh ref={leftLeg} position={[-0.13, 0.28, 0]} castShadow>
-        <boxGeometry args={[0.13, 0.55, 0.16]} />
-        <meshStandardMaterial color="#26334d" />
-      </mesh>
-      <mesh ref={rightLeg} position={[0.13, 0.28, 0]} castShadow>
-        <boxGeometry args={[0.13, 0.55, 0.16]} />
-        <meshStandardMaterial color="#26334d" />
-      </mesh>
+      <PlayerModelErrorBoundary fallback={<PlayerProceduralModel leftLeg={leftLeg} rightLeg={rightLeg} leftArm={leftArm} rightArm={rightArm} />}>
+        <Suspense fallback={<PlayerProceduralModel leftLeg={leftLeg} rightLeg={rightLeg} leftArm={leftArm} rightArm={rightArm} />}>
+          <PlayerGltfModel state={state} />
+        </Suspense>
+      </PlayerModelErrorBoundary>
       {debugCollision && <mesh rotation-x={-Math.PI / 2} position={[0, 0.035, 0]}>
         <ringGeometry args={[0.3, 0.36, 24]} />
         <meshBasicMaterial color="#ff4d5e" depthTest={false} />
