@@ -17,7 +17,7 @@ import { QualityManager, resolveGraphicsQuality, type RuntimeQuality } from "./g
 import { loadWorldSave, type Inventory } from "./game/core/SaveManager";
 import { InventoryMenu } from "./ui/InventoryMenu";
 import { WorldMap } from "./ui/WorldMap";
-import type { MapEnemy, TrackedTarget } from "./game/map/types";
+import type { MapEnemy, MapWaypoint, TrackedTarget } from "./game/map/types";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -56,7 +56,7 @@ function addBounded(set: Set<string>, value: string, maxSize: number): boolean {
   return true;
 }
 
-function formatTargetDistance(target: TrackedTarget | null, worldTileX: string, worldTileY: string, offsetX: number, offsetY: number): string {
+function formatTargetDistance(target: { worldX: string; worldY: string; offsetX: number; offsetY: number } | null, worldTileX: string, worldTileY: string, offsetX: number, offsetY: number): string {
   if (!target) return "";
   const dx = Number(BigInt(target.worldX) - BigInt(worldTileX)) + target.offsetX - offsetX;
   const dy = Number(BigInt(target.worldY) - BigInt(worldTileY)) + target.offsetY - offsetY;
@@ -83,6 +83,7 @@ export default function App() {
   const [showMap, setShowMap] = useState(false);
   const [mapEnemies, setMapEnemies] = useState<MapEnemy[]>([]);
   const [trackedTarget, setTrackedTarget] = useState<TrackedTarget | null>(null);
+  const [mapWaypoint, setMapWaypoint] = useState<MapWaypoint | null>(null);
   const manager = useMemo(() => {
     const next = new ChunkManager(seed);
     next.setActiveRadius(effectiveSettings.graphics.renderDistance);
@@ -233,6 +234,7 @@ export default function App() {
     setInventory(loadWorldSave(nextKey).inventory);
     setMapEnemies([]);
     setTrackedTarget(null);
+    setMapWaypoint(null);
     const saved = localStorage.getItem(`ihmw.exploration.${nextKey}`);
     setExploration(saved ? JSON.parse(saved) as ExplorationStats : emptyExploration(nextKey));
     seenDecorKeys.current.clear();
@@ -393,6 +395,7 @@ export default function App() {
   }, [chunks, qualityManager, seedKey, settings.graphics.fpsLimit]);
 
   const targetDistance = formatTargetDistance(trackedTarget, stats.worldTileX, stats.worldTileY, stats.offsetX, stats.offsetY);
+  const waypointDistance = formatTargetDistance(mapWaypoint, stats.worldTileX, stats.worldTileY, stats.offsetX, stats.offsetY);
 
   return (
     <main>
@@ -407,11 +410,14 @@ export default function App() {
         notification={notification}
         trackedTarget={trackedTarget}
         targetDistance={targetDistance}
+        waypoint={mapWaypoint}
+        waypointDistance={waypointDistance}
         onClearTarget={() => setTrackedTarget(null)}
+        onClearWaypoint={() => setMapWaypoint(null)}
         onInventory={() => setShowInventory(true)}
         onSettings={() => setShowSettings(true)}
       />
-      {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} onOpenMap={() => setShowMap(true)} />}
+      {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} onOpenMap={() => setShowMap(true)} />}
       {showSettings && <SettingsMenu
         settings={settings}
         runtimeQuality={runtimeQuality}
@@ -434,7 +440,7 @@ export default function App() {
         onResetExploration={resetExploration}
       />}
       {showInventory && <InventoryMenu inventory={inventory} onClose={() => setShowInventory(false)} />}
-      {showMap && <WorldMap seed={seed} chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onClose={() => setShowMap(false)} />}
+      {showMap && <WorldMap seed={seed} chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={setMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
       {status === "loading" && chunks.length === 0 && <LoadingOverlay text="Đang sinh chunk bằng Web Worker..." />}

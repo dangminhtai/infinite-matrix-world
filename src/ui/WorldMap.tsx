@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CHUNK_SIZE } from "../game/constants";
 import type { MapTile } from "../game/map/mapTile";
-import type { MapEnemy, TrackedTarget } from "../game/map/types";
+import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import { calculateMapMinScale, clampZoomLevel, MAP_ZOOM_DEFAULT_LEVEL, MAP_ZOOM_MAX_LEVEL, MAP_ZOOM_MAX_SCALE, MAP_ZOOM_MIN_LEVEL, MAX_VISIBLE_MAP_TILES, scaleRatioToZoomDelta, zoomLevelToScale } from "../game/map/mapZoom";
 import type { BiomeId, ChunkPayload } from "../game/types";
 
-const colors: Record<BiomeId, string> = { 0: "#4a9ac7", 1: "#777f83", 2: "#28744a", 3: "#80664e", 4: "#c7b36f", 5: "#65a958" };
+const colors: Record<BiomeId, string> = { 0: "#4a9ac7", 1: "#969da3", 2: "#28744a", 3: "#80664e", 4: "#c7b36f", 5: "#65a958" };
 const MAX_MAP_TILES = 512;
 const MAX_IN_FLIGHT = 2;
 const ZOOM_BUTTON_STEP = 8;
@@ -34,7 +34,7 @@ function getSeedCache(seedKey: string): Map<string, MapTile> {
   return cache;
 }
 
-export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, playerOffsetX, playerOffsetY, playerYaw, enemies, target, onSelectTarget, onClose }: {
+export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, playerOffsetX, playerOffsetY, playerYaw, enemies, target, waypoint, allowMapTeleport, onSelectTarget, onSetWaypoint, onTeleportWaypoint, onClose }: {
   seed: string[][];
   chunks: ChunkPayload[];
   visitedChunks: string[];
@@ -45,7 +45,11 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
   playerYaw: number;
   enemies: MapEnemy[];
   target: TrackedTarget | null;
+  waypoint: MapWaypoint | null;
+  allowMapTeleport: boolean;
   onSelectTarget: (enemy: MapEnemy) => void;
+  onSetWaypoint: (waypoint: MapWaypoint) => void;
+  onTeleportWaypoint: (waypoint: MapWaypoint) => void;
   onClose: () => void;
 }) {
   const seedKey = JSON.stringify(seed);
@@ -138,6 +142,23 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     setRevision((value) => value + 1);
   }, [scale]);
 
+  const waypointFromScreenPoint = useCallback((x: number, y: number): MapWaypoint | null => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const view = center.current;
+    const worldFloatX = (x - rect.width / 2 - view.residualX) / scale;
+    const worldFloatY = (y - rect.height / 2 - view.residualY) / scale;
+    const tileOffsetX = Math.floor(worldFloatX);
+    const tileOffsetY = Math.floor(worldFloatY);
+    return {
+      id: `${Date.now()}`,
+      worldX: (view.x + BigInt(tileOffsetX)).toString(),
+      worldY: (view.y + BigInt(tileOffsetY)).toString(),
+      offsetX: worldFloatX - tileOffsetX,
+      offsetY: worldFloatY - tileOffsetY,
+    };
+  }, [scale]);
+
   useEffect(() => {
     const redraw = () => {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -202,8 +223,13 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
       if (abs(chunkX - view.x) > visibleTiles || abs(chunkY - view.y) > visibleTiles) continue;
       for (let y = 0; y < CHUNK_SIZE; y += 1) for (let x = 0; x < CHUNK_SIZE; x += 1) {
         const point = project(chunkX + BigInt(x), chunkY + BigInt(y));
-        ctx.fillStyle = colors[(tile.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId];
+        const biome = (tile.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
+        ctx.fillStyle = colors[biome];
         ctx.fillRect(point.x, point.y, Math.max(1, scale + 0.35), Math.max(1, scale + 0.35));
+        if (biome === 1 && scale >= 3) {
+          ctx.fillStyle = "rgba(52, 58, 65, 0.38)";
+          ctx.fillRect(point.x, point.y + scale * 0.62, Math.max(1, scale + 0.35), Math.max(1, scale * 0.12));
+        }
       }
       const point = project(chunkX, chunkY);
       if (scale >= 1) {
@@ -234,6 +260,24 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
       enemyHits.current.push({ enemy, x: point.x, y: point.y });
     }
 
+    if (waypoint) {
+      const point = project(BigInt(waypoint.worldX), BigInt(waypoint.worldY), waypoint.offsetX, waypoint.offsetY);
+      if (point.x >= -18 && point.y >= -18 && point.x <= width + 18 && point.y <= height + 18) {
+        ctx.fillStyle = "#ffb347";
+        ctx.strokeStyle = "rgba(22, 28, 31, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 13, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     const playerPoint = project(BigInt(playerX), BigInt(playerY), playerOffsetX, playerOffsetY);
     ctx.save();
     ctx.translate(playerPoint.x, playerPoint.y);
@@ -250,7 +294,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     ctx.fill();
     ctx.stroke();
     ctx.restore();
-  }, [enemies, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, visitedChunks]);
+  }, [enemies, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, visitedChunks, waypoint]);
 
   return <div className="worldMapOverlay" role="dialog" aria-modal="true" aria-label="Bản đồ thế giới">
     <header className="worldMapHeader">
@@ -305,6 +349,10 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
           const y = event.clientY - rect.top;
           const hit = enemyHits.current.find((entry) => Math.hypot(entry.x - x, entry.y - y) <= 14);
           if (hit) onSelectTarget(hit.enemy);
+          else {
+            const nextWaypoint = waypointFromScreenPoint(x, y);
+            if (nextWaypoint) onSetWaypoint(nextWaypoint);
+          }
         }
         const remaining = [...pointers.current.entries()][0];
         if (remaining) drag.current = { pointerId: remaining[0], x: remaining[1].x, y: remaining[1].y, moved: true };
@@ -318,6 +366,11 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
       <input type="range" min={MAP_ZOOM_MIN_LEVEL} max={MAP_ZOOM_MAX_LEVEL} step={1} value={zoomLevel} disabled={zoomLocked} onChange={(event) => setZoomLevel(clampZoomLevel(Number(event.target.value)))} aria-label="Mức thu phóng bản đồ" />
       <button type="button" onClick={() => setZoomLevel((value) => clampZoomLevel(value - ZOOM_BUTTON_STEP))} disabled={atMinZoom} title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
     </div>
-    <div className="worldMapLegend"><span><i className="enemyLegend" />Quái</span><span><i className="playerLegend" />Người chơi</span><small>Kéo để khám phá · Nhấn quái để theo dõi</small></div>
+    {waypoint && <div className="worldMapWaypointPanel">
+      <span>Mốc đánh dấu</span>
+      <strong>{waypoint.worldX}, {waypoint.worldY}</strong>
+      {allowMapTeleport && <button type="button" onClick={() => onTeleportWaypoint(waypoint)}>Teleport</button>}
+    </div>}
+    <div className="worldMapLegend"><span><i className="enemyLegend" />Quái</span><span><i className="waypointLegend" />Mốc</span><span><i className="mountainLegend" />Núi</span><span><i className="playerLegend" />Người chơi</span><small>Kéo để khám phá · Nhấn quái để theo dõi · Nhấn map để đặt mốc</small></div>
   </div>;
 }

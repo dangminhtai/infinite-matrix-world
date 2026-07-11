@@ -138,6 +138,17 @@ button:hover {
   box-shadow: 0 0 0 3px rgba(233, 86, 101, 0.2);
 }
 
+.trackedTarget.waypointTarget {
+  border-left-color: #ffb347;
+}
+
+.trackedTarget.waypointTarget > i {
+  background: #ffb347;
+  box-shadow: 0 0 0 3px rgba(255, 179, 71, 0.2);
+}
+
+.trackedTarget.waypointTarget span { color: #ffd396; }
+
 .trackedTarget div { display: grid; gap: 2px; }
 .trackedTarget span { color: #f4a7af; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .trackedTarget strong { font-size: 13px; }
@@ -631,6 +642,39 @@ button:hover {
 
 .worldMapZoomControl input[type="range"]:disabled { opacity: 0.45; cursor: default; }
 
+.worldMapWaypointPanel {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  bottom: 64px;
+  min-width: 190px;
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  pointer-events: auto;
+  color: #eff6f3;
+  background: rgba(23, 34, 38, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.worldMapWaypointPanel span {
+  color: #ffd396;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.worldMapWaypointPanel strong { font-size: 13px; }
+
+.worldMapWaypointPanel button {
+  justify-self: start;
+  color: #1f2a2d;
+  background: #ffb347;
+  border-color: #ffd396;
+}
+
 .worldMapLegend {
   position: absolute;
   z-index: 2;
@@ -648,6 +692,8 @@ button:hover {
 .worldMapLegend span { display: flex; align-items: center; gap: 6px; }
 .worldMapLegend i { width: 9px; height: 9px; border-radius: 50%; }
 .worldMapLegend .enemyLegend { background: #e95665; }
+.worldMapLegend .waypointLegend { background: #ffb347; }
+.worldMapLegend .mountainLegend { background: #969da3; box-shadow: inset 0 -3px 0 rgba(52, 58, 65, 0.6); }
 .worldMapLegend .playerLegend { background: #fff; }
 .worldMapLegend small { color: #b7c4c9; }
 
@@ -862,6 +908,7 @@ button:hover {
     writing-mode: horizontal-tb;
     direction: ltr;
   }
+  .worldMapWaypointPanel { left: 10px; right: 10px; bottom: 150px; min-width: 0; }
   .worldMapLegend { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; gap: 8px 12px; }
   .worldMapLegend small { flex-basis: 100%; }
 

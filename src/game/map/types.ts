@@ -7,3 +7,11 @@ export type MapEnemy = {
 };
 
 export type TrackedTarget = MapEnemy;
+
+export type MapWaypoint = {
+  id: string;
+  worldX: string;
+  worldY: string;
+  offsetX: number;
+  offsetY: number;
+};

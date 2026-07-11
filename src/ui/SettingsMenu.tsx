@@ -133,6 +133,7 @@ export function SettingsMenu({
             <Toggle label="Đảo trục Y" checked={draft.gameplay.invertY} onChange={(invertY) => update("gameplay", { invertY })} />
             <Toggle label="Tự động chạy" checked={draft.gameplay.autoRun} onChange={(autoRun) => update("gameplay", { autoRun })} />
             <Toggle label="Hiện minimap" checked={draft.gameplay.showMinimap} onChange={(showMinimap) => update("gameplay", { showMinimap })} />
+            <Toggle label="Cho teleport từ bản đồ" checked={draft.gameplay.allowMapTeleport} onChange={(allowMapTeleport) => update("gameplay", { allowMapTeleport })} />
             {!import.meta.env.DEV && <Toggle label="Developer mode" checked={draft.gameplay.developerMode} onChange={(developerMode) => update("gameplay", { developerMode })} />}
           </div>}
 

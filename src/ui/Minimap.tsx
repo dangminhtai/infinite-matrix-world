@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import { CHUNK_SIZE } from "../game/constants";
-import type { MapEnemy, TrackedTarget } from "../game/map/types";
+import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import type { BiomeId, ChunkPayload } from "../game/types";
 
 const biomeColors: Record<BiomeId, string> = {
   0: "#4aa3df",
-  1: "#8c8f95",
+  1: "#a3a7ad",
   2: "#2f8f4e",
   3: "#9b7653",
   4: "#d9c27c",
@@ -21,6 +21,7 @@ export function Minimap({
   playerYaw,
   enemies,
   target,
+  waypoint,
   onOpenMap,
 }: {
   chunks: ChunkPayload[];
@@ -31,6 +32,7 @@ export function Minimap({
   playerYaw: number;
   enemies: MapEnemy[];
   target: TrackedTarget | null;
+  waypoint: MapWaypoint | null;
   onOpenMap: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,8 +71,13 @@ export function Minimap({
           const sx = cssSize / 2 + (Number(wx - px) - offsetX) * scale;
           const sy = cssSize / 2 + (Number(wy - py) - offsetY) * scale;
           if (sx < -4 || sy < -4 || sx > cssSize + 4 || sy > cssSize + 4) continue;
-          ctx.fillStyle = biomeColors[(chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId];
+          const biome = (chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
+          ctx.fillStyle = biomeColors[biome];
           ctx.fillRect(sx, sy, scale + 0.5, scale + 0.5);
+          if (biome === 1) {
+            ctx.fillStyle = "rgba(55, 61, 68, 0.45)";
+            ctx.fillRect(sx, sy + scale * 0.58, scale + 0.5, 1);
+          }
         }
       }
       ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
@@ -111,6 +118,27 @@ export function Minimap({
         ctx.stroke();
       }
     }
+    if (waypoint) {
+      const waypointX = (Number(BigInt(waypoint.worldX) - px) + waypoint.offsetX - offsetX) * scale;
+      const waypointY = (Number(BigInt(waypoint.worldY) - py) + waypoint.offsetY - offsetY) * scale;
+      const waypointDistance = Math.hypot(waypointX, waypointY);
+      const radius = cssSize / 2 - 15;
+      const factor = waypointDistance > 0.001 ? Math.min(1, radius / waypointDistance) : 1;
+      const markerX = cssSize / 2 + waypointX * factor;
+      const markerY = cssSize / 2 + waypointY * factor;
+      ctx.fillStyle = "#ffb347";
+      ctx.strokeStyle = "rgba(22, 28, 31, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(markerX, markerY, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(markerX, markerY, 9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
 
     ctx.save();
@@ -131,7 +159,7 @@ export function Minimap({
     ctx.beginPath();
     ctx.arc(cssSize / 2, cssSize / 2, cssSize / 2 - 5, 0, Math.PI * 2);
     ctx.stroke();
-  }, [chunks, enemies, offsetX, offsetY, playerYaw, target?.id, worldTileX, worldTileY]);
+  }, [chunks, enemies, offsetX, offsetY, playerYaw, target?.id, waypoint?.id, worldTileX, worldTileY]);
 
   return <canvas ref={canvasRef} className="minimap" aria-label="Mở bản đồ" role="button" tabIndex={0} onClick={onOpenMap} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpenMap(); }} />;
 }

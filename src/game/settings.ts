@@ -10,6 +10,7 @@ export type GameSettings = {
     invertY: boolean;
     autoRun: boolean;
     showMinimap: boolean;
+    allowMapTeleport: boolean;
     developerMode: boolean;
   };
   graphics: {
@@ -49,6 +50,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     invertY: false,
     autoRun: false,
     showMinimap: true,
+    allowMapTeleport: false,
     developerMode: import.meta.env.DEV,
   },
   graphics: {
