@@ -116,6 +116,7 @@ export default function App() {
     health: 100,
     stamina: 100,
     swimming: false,
+    climbing: false,
     frameTimeMs: 0,
     frameTimeMaxMs: 0,
     drawCalls: 0,
@@ -312,7 +313,7 @@ export default function App() {
     setExploration(next);
   }, [seedKey]);
 
-  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; yaw: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; swimming: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
+  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; yaw: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; swimming: boolean; climbing: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
     const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const offsetX = state.localX - Math.floor(state.localX);
@@ -344,6 +345,7 @@ export default function App() {
         health: state.health,
         stamina: state.stamina,
         swimming: state.swimming,
+        climbing: state.climbing,
         frameTimeMs: state.frameTimeMs,
         frameTimeMaxMs: state.frameTimeMaxMs,
         drawCalls: state.drawCalls,
@@ -399,6 +401,7 @@ export default function App() {
         health={stats.health}
         stamina={stats.stamina}
         swimming={stats.swimming}
+        climbing={stats.climbing}
         interactionLabel={interactionLabel}
         interactionKey={settings.controls.interact.replace("Key", "")}
         notification={notification}

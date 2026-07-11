@@ -10,6 +10,7 @@ Game khám phá thế giới 3D sinh thủ tục trên trình duyệt, xây dự
 - Terrain LOD theo khoảng cách; cây, đá, hoa và entity sử dụng `InstancedMesh`.
 - Camera góc nhìn thứ ba độc lập với hướng di chuyển, có zoom và chống xuyên địa hình.
 - Nhân vật có trạng thái đứng, đi, chạy, nhảy, rơi và bơi.
+- Nhân vật có thể bám và leo sườn núi, hao stamina, nhảy khỏi vách và leo qua mép.
 - Bơi thường, bơi nhanh tốn stamina, mất máu khi kiệt sức và hồi sinh tại vị trí đất an toàn.
 - Vật phẩm, rương, điểm hồi phục và quái sinh xác định theo seed/chunk.
 - Tấn công thường, kỹ năng có hồi chiêu, AI quái gần và túi đồ có stack.
@@ -29,7 +30,7 @@ NPC và nhiệm vụ không nằm trong phạm vi MVP hiện tại.
 | --- | --- |
 | `W A S D` | Di chuyển tương đối theo hướng camera |
 | `Shift` | Chạy hoặc bơi nhanh |
-| `Space` | Nhảy; khi bơi dùng để đạp nước |
+| `Space` | Nhảy; đạp nước khi bơi; nhảy khỏi vách khi leo |
 | `E` | Nhặt vật phẩm, mở rương hoặc dùng điểm hồi phục |
 | `J` | Tấn công thường |
 | `K` | Kỹ năng |

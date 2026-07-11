@@ -1,9 +1,12 @@
 import { CHUNK_SIZE } from "../constants";
 import type { ChunkPayload } from "../types";
+import { sampleTerrainSurface } from "./terrainSurface";
 
 export type SurfaceSample = { height: number; walkable: boolean; water: boolean; biome: number };
 
 export function sampleChunkHeight(chunks: Map<string, ChunkPayload>, wx: bigint, wy: bigint): SurfaceSample | null {
+  const continuous = sampleTerrainSurface(chunks, wx, wy);
+  if (continuous) return { height: continuous.height, walkable: continuous.walkable, water: continuous.water, biome: continuous.biome };
   const cx = wx >= 0n ? wx / BigInt(CHUNK_SIZE) : (wx - BigInt(CHUNK_SIZE - 1)) / BigInt(CHUNK_SIZE);
   const cy = wy >= 0n ? wy / BigInt(CHUNK_SIZE) : (wy - BigInt(CHUNK_SIZE - 1)) / BigInt(CHUNK_SIZE);
   const chunk = chunks.get(`${cx},${cy}`);

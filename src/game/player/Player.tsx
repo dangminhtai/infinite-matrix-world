@@ -11,18 +11,22 @@ export function Player({ state, debugCollision }: { state: MutableRefObject<Game
   const rightArm = useRef<THREE.Mesh>(null);
   const color = useMemo(() => new THREE.Color("#f6d7b0"), []);
   useFrame(({ clock }) => {
+    const movementState = state.current.movementState;
+    const climbing = movementState === "climb" || movementState === "climbIdle";
+    const mantling = movementState === "mantle";
     if (group.current) {
       group.current.position.set(state.current.localX, state.current.height, state.current.localZ);
       group.current.rotation.y = state.current.yaw;
-      group.current.rotation.x = state.current.movementState === "swim" ? -0.42 : 0;
+      group.current.rotation.x = movementState === "swim" ? -0.42 : climbing ? -0.72 * (1 - state.current.climbNormalY * 0.35) : mantling ? -0.5 : 0;
     }
-    const swimming = state.current.movementState === "swim";
-    const moving = state.current.movementState === "walk" || state.current.movementState === "run";
-    const frequency = state.current.movementState === "run" ? 12 : 8;
-    const speed = swimming ? Math.sin(clock.elapsedTime * 9) * 0.48 : moving ? Math.sin(clock.elapsedTime * frequency) * 0.35 : 0;
+    const swimming = movementState === "swim";
+    const moving = movementState === "walk" || movementState === "run";
+    const frequency = movementState === "run" ? 12 : 8;
+    const climbCycle = climbing ? Math.sin(clock.elapsedTime * (movementState === "climb" ? 7 : 2.5)) : 0;
+    const speed = swimming ? Math.sin(clock.elapsedTime * 9) * 0.48 : climbing ? climbCycle * (movementState === "climb" ? 0.52 : 0.08) : mantling ? Math.sin(clock.elapsedTime * 12) * 0.22 : moving ? Math.sin(clock.elapsedTime * frequency) * 0.35 : 0;
     if (leftLeg.current) leftLeg.current.rotation.x = speed;
     if (rightLeg.current) rightLeg.current.rotation.x = -speed;
-    const armStroke = swimming ? Math.sin(clock.elapsedTime * 5.5) * 1.05 : moving ? -speed * 0.7 : 0;
+    const armStroke = swimming ? Math.sin(clock.elapsedTime * 5.5) * 1.05 : climbing ? -speed * 1.75 : mantling ? -0.95 : moving ? -speed * 0.7 : 0;
     if (leftArm.current) leftArm.current.rotation.x = armStroke;
     if (rightArm.current) rightArm.current.rotation.x = -armStroke;
   });

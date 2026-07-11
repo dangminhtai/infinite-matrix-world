@@ -1,0 +1,11 @@
+export const WALKABLE_NORMAL_Y = 0.72;
+export const CLIMBABLE_MIN_NORMAL_Y = 0.12;
+export const CLIMBABLE_MAX_NORMAL_Y = 0.72;
+export const CLIMB_RELEASE_NORMAL_Y = 0.8;
+export const CLIMB_SPEED = 1.8;
+export const CLIMB_VERTICAL_SPEED = 2.8;
+export const CLIMB_IDLE_STAMINA_PER_SECOND = 2.5;
+export const CLIMB_MOVE_STAMINA_PER_SECOND = 10;
+export const CLIMB_JUMP_COST = 18;
+export const CLIMB_REATTACH_DELAY = 0.6;
+export const MANTLE_DURATION = 0.38;

@@ -16,12 +16,26 @@ import type { GameSettings } from "./settings";
 import { EntitySystem } from "./entities/EntitySystem";
 import type { Inventory } from "./core/SaveManager";
 import type { MapEnemy } from "./map/types";
+import { sampleTerrainSurface, type TerrainSurface } from "./player/terrainSurface";
+import { CLIMBABLE_MAX_NORMAL_Y, CLIMBABLE_MIN_NORMAL_Y, CLIMB_IDLE_STAMINA_PER_SECOND, CLIMB_JUMP_COST, CLIMB_MOVE_STAMINA_PER_SECOND, CLIMB_REATTACH_DELAY, CLIMB_RELEASE_NORMAL_Y, CLIMB_SPEED, CLIMB_VERTICAL_SPEED, MANTLE_DURATION, WALKABLE_NORMAL_Y } from "./player/climbingConfig";
 
 function floorDiv(a: bigint, b: bigint): bigint {
   let q = a / b;
   const r = a % b;
   if (r !== 0n && (r > 0n) !== (b > 0n)) q -= 1n;
   return q;
+}
+
+function sampleLocalSurface(chunks: Map<string, ChunkPayload>, tileX: bigint, tileY: bigint, localX: number, localZ: number): TerrainSurface | null {
+  const wholeX = Math.floor(localX);
+  const wholeZ = Math.floor(localZ);
+  return sampleTerrainSurface(chunks, tileX + BigInt(wholeX), tileY + BigInt(wholeZ), localX - wholeX, localZ - wholeZ);
+}
+
+function isClimbableSurface(surface: TerrainSurface): boolean {
+  if (surface.water) return false;
+  if (!surface.walkable && surface.biome === 1) return true;
+  return surface.normalY >= CLIMBABLE_MIN_NORMAL_Y && surface.normalY <= CLIMBABLE_MAX_NORMAL_Y;
 }
 
 function FrameLimiter({ limit }: { limit: number }) {
@@ -44,8 +58,13 @@ export type GameState = {
   yaw: number;
   verticalVelocity: number;
   grounded: boolean;
-  movementState: "idle" | "walk" | "run" | "jump" | "fall" | "swim";
+  movementState: "idle" | "walk" | "run" | "jump" | "fall" | "swim" | "climbIdle" | "climb" | "mantle";
   swimming: boolean;
+  climbing: boolean;
+  mantling: boolean;
+  climbNormalX: number;
+  climbNormalY: number;
+  climbNormalZ: number;
   health: number;
   stamina: number;
   cameraYaw: number;
@@ -120,6 +139,11 @@ function Scene({
     grounded: true,
     movementState: "idle",
     swimming: false,
+    climbing: false,
+    mantling: false,
+    climbNormalX: 0,
+    climbNormalY: 1,
+    climbNormalZ: 0,
     health: 100,
     stamina: 100,
     cameraYaw: Math.PI * 0.75,
@@ -140,6 +164,8 @@ function Scene({
   const fpsRef = useRef({ frames: 0, elapsed: 0, fps: 0, frameTimeMs: 0, frameTimeMaxMs: 0 });
   const swimKickUntil = useRef(0);
   const safeGround = useRef({ worldX: 8n, worldY: 8n, offsetX: 0, offsetZ: 0, height: 0 });
+  const climbReattachAt = useRef(0);
+  const mantle = useRef<{ elapsed: number; startX: number; startZ: number; startHeight: number; targetX: number; targetZ: number; targetHeight: number } | null>(null);
   const { camera, raycaster, scene } = useThree();
 
   useEffect(() => {
@@ -181,6 +207,9 @@ function Scene({
       game.current.verticalVelocity = 0;
       game.current.grounded = true;
       game.current.swimming = false;
+      game.current.climbing = false;
+      game.current.mantling = false;
+      mantle.current = null;
       pendingTeleport.current = null;
       return;
     }
@@ -317,60 +346,139 @@ function Scene({
       worldDx = -Math.sin(cyaw) * forward + Math.cos(cyaw) * inputX;
       worldDz = -Math.cos(cyaw) * forward - Math.sin(cyaw) * inputX;
     }
-    const currentWorldX = state.tileX + BigInt(Math.floor(state.localX));
-    const currentWorldY = state.tileY + BigInt(Math.floor(state.localZ));
-    const currentSurface = sampleChunkHeight(chunkMap, currentWorldX, currentWorldY);
-    state.swimming = currentSurface?.water === true && state.height <= WATER_SURFACE_Y + 0.8;
+    const now = renderState.clock.elapsedTime;
+    const currentSurface = sampleLocalSurface(chunkMap, state.tileX, state.tileY, state.localX, state.localZ);
+    state.swimming = !state.climbing && !state.mantling && currentSurface?.water === true && state.height <= WATER_SURFACE_Y + 0.8;
     const requestedRun = settings.gameplay.autoRun || controls.mobileRun || controls.pressed.has(settings.controls.run);
     const running = requestedRun && state.stamina > 0.1;
     const moving = worldDx !== 0 || worldDz !== 0;
     const speed = state.swimming ? (state.stamina <= 0 ? 1.5 : running ? 4.8 : 2.8) : running ? 7.2 : 4.2;
     let groundHeight = currentSurface?.height ?? state.height;
     let moved = false;
-    if (moving) {
-      const nextX = state.localX + worldDx * speed * delta;
-      const nextZ = state.localZ + worldDz * speed * delta;
-      const wx = state.tileX + BigInt(Math.floor(nextX));
-      const wy = state.tileY + BigInt(Math.floor(nextZ));
-      const sample = sampleChunkHeight(chunkMap, wx, wy);
-      if (sample && (sample.walkable || sample.water)) {
-        state.localX = nextX;
-        state.localZ = nextZ;
-        groundHeight = sample.height;
-        moved = true;
-        state.yaw = dampAngle(state.yaw, Math.atan2(worldDx, worldDz), 14, delta);
+    if (state.mantling && mantle.current) {
+      const step = mantle.current;
+      step.elapsed = Math.min(MANTLE_DURATION, step.elapsed + delta);
+      const t = step.elapsed / MANTLE_DURATION;
+      const eased = t * t * (3 - 2 * t);
+      state.localX = step.startX + (step.targetX - step.startX) * eased;
+      state.localZ = step.startZ + (step.targetZ - step.startZ) * eased;
+      state.height = step.startHeight + (step.targetHeight - step.startHeight) * eased;
+      if (t >= 1) {
+        state.mantling = false;
+        state.grounded = true;
+        mantle.current = null;
       }
-    }
-    const finalWorldX = state.tileX + BigInt(Math.floor(state.localX));
-    const finalWorldY = state.tileY + BigInt(Math.floor(state.localZ));
-    const finalSurface = sampleChunkHeight(chunkMap, finalWorldX, finalWorldY);
-    state.swimming = finalSurface?.water === true && state.height <= WATER_SURFACE_Y + 0.8;
-    if (controls.jumpQueued && state.swimming) {
-      swimKickUntil.current = renderState.clock.elapsedTime + 0.42;
-    } else if (controls.jumpQueued && state.grounded) {
-      state.verticalVelocity = 6.8;
-      state.grounded = false;
-    }
-    const staminaRate = state.swimming ? (moving && running ? -14 : -2) : moved && running ? -20 : 12;
-    state.stamina = Math.max(0, Math.min(100, state.stamina + staminaRate * delta));
-    if (state.swimming && state.stamina <= 0) state.health = Math.max(0, state.health - 8 * delta);
-    controls.jumpQueued = false;
-    if (state.swimming) {
-      const kick = renderState.clock.elapsedTime < swimKickUntil.current ? Math.sin((swimKickUntil.current - renderState.clock.elapsedTime) * Math.PI / 0.42) * 0.1 : 0;
-      state.height += (SWIM_PLAYER_Y + kick - state.height) * (1 - Math.exp(-10 * delta));
+    } else if (state.climbing) {
+      if (!currentSurface || currentSurface.water || state.stamina <= 0) {
+        state.climbing = false;
+        state.grounded = false;
+        climbReattachAt.current = now + CLIMB_REATTACH_DELAY;
+      } else if (controls.jumpQueued && state.stamina >= CLIMB_JUMP_COST) {
+        state.stamina = Math.max(0, state.stamina - CLIMB_JUMP_COST);
+        state.localX += state.climbNormalX * 0.18;
+        state.localZ += state.climbNormalZ * 0.18;
+        state.verticalVelocity = 4.6;
+        state.climbing = false;
+        state.grounded = false;
+        climbReattachAt.current = now + CLIMB_REATTACH_DELAY;
+      } else if (moving) {
+        const desiredX = state.localX + worldDx * CLIMB_SPEED * delta;
+        const desiredZ = state.localZ + worldDz * CLIMB_SPEED * delta;
+        let nextSurface = sampleLocalSurface(chunkMap, state.tileX, state.tileY, desiredX, desiredZ);
+        if (nextSurface?.walkable && nextSurface.normalY >= WALKABLE_NORMAL_Y) {
+          if (nextSurface.height >= state.height - 0.08) {
+            const mantleX = desiredX + worldDx * 0.22;
+            const mantleZ = desiredZ + worldDz * 0.22;
+            const mantleSurface = sampleLocalSurface(chunkMap, state.tileX, state.tileY, mantleX, mantleZ);
+            if (mantleSurface?.walkable) {
+              mantle.current = { elapsed: 0, startX: state.localX, startZ: state.localZ, startHeight: state.height, targetX: mantleX, targetZ: mantleZ, targetHeight: mantleSurface.height };
+              state.climbing = false;
+              state.mantling = true;
+            }
+          } else {
+            state.localX = desiredX;
+            state.localZ = desiredZ;
+            state.height = nextSurface.height;
+            state.climbing = false;
+            state.grounded = true;
+            moved = true;
+          }
+        } else if (nextSurface && !nextSurface.water && (isClimbableSurface(nextSurface) || nextSurface.normalY <= CLIMB_RELEASE_NORMAL_Y)) {
+          const heightDelta = nextSurface.height - state.height;
+          const maxHeightDelta = CLIMB_VERTICAL_SPEED * delta;
+          const ratio = Math.min(1, maxHeightDelta / Math.max(Math.abs(heightDelta), 0.0001));
+          const nextX = state.localX + (desiredX - state.localX) * ratio;
+          const nextZ = state.localZ + (desiredZ - state.localZ) * ratio;
+          nextSurface = sampleLocalSurface(chunkMap, state.tileX, state.tileY, nextX, nextZ);
+          if (nextSurface && !nextSurface.water && (isClimbableSurface(nextSurface) || nextSurface.normalY <= CLIMB_RELEASE_NORMAL_Y)) {
+            state.localX = nextX;
+            state.localZ = nextZ;
+            state.height = nextSurface.height;
+            state.climbNormalX += (nextSurface.normalX - state.climbNormalX) * (1 - Math.exp(-14 * delta));
+            state.climbNormalY += (nextSurface.normalY - state.climbNormalY) * (1 - Math.exp(-14 * delta));
+            state.climbNormalZ += (nextSurface.normalZ - state.climbNormalZ) * (1 - Math.exp(-14 * delta));
+            state.yaw = dampAngle(state.yaw, Math.atan2(-state.climbNormalX, -state.climbNormalZ), 12, delta);
+            moved = true;
+          }
+        }
+      }
+      if (state.climbing) state.stamina = Math.max(0, state.stamina - (moving ? CLIMB_MOVE_STAMINA_PER_SECOND : CLIMB_IDLE_STAMINA_PER_SECOND) * delta);
       state.verticalVelocity = 0;
-      state.grounded = true;
-    } else if (!state.grounded) {
-      state.verticalVelocity -= 18 * delta;
-      state.height += state.verticalVelocity * delta;
-      if (state.height <= groundHeight && state.verticalVelocity <= 0) {
-        state.height = groundHeight;
+      state.grounded = state.climbing;
+    } else {
+      if (moving) {
+        const nextX = state.localX + worldDx * speed * delta;
+        const nextZ = state.localZ + worldDz * speed * delta;
+        const sample = sampleLocalSurface(chunkMap, state.tileX, state.tileY, nextX, nextZ);
+        if (sample && (sample.walkable || sample.water)) {
+          state.localX = nextX;
+          state.localZ = nextZ;
+          groundHeight = sample.height;
+          moved = true;
+          state.yaw = dampAngle(state.yaw, Math.atan2(worldDx, worldDz), 14, delta);
+        } else if (sample && isClimbableSurface(sample) && state.stamina >= 5 && now >= climbReattachAt.current) {
+          state.climbing = true;
+          state.grounded = true;
+          state.verticalVelocity = 0;
+          state.climbNormalX = sample.normalX;
+          state.climbNormalY = sample.normalY;
+          state.climbNormalZ = sample.normalZ;
+          state.yaw = dampAngle(state.yaw, Math.atan2(-sample.normalX, -sample.normalZ), 12, delta);
+        }
+      }
+      const finalSurface = sampleLocalSurface(chunkMap, state.tileX, state.tileY, state.localX, state.localZ);
+      state.swimming = finalSurface?.water === true && state.height <= WATER_SURFACE_Y + 0.8;
+      groundHeight = finalSurface?.height ?? groundHeight;
+      if (controls.jumpQueued && state.swimming) {
+        swimKickUntil.current = now + 0.42;
+      } else if (controls.jumpQueued && state.grounded) {
+        state.verticalVelocity = 6.8;
+        state.grounded = false;
+      }
+      const staminaRate = state.swimming ? (moving && running ? -14 : -2) : moved && running ? -20 : 12;
+      state.stamina = Math.max(0, Math.min(100, state.stamina + staminaRate * delta));
+      if (state.swimming && state.stamina <= 0) state.health = Math.max(0, state.health - 8 * delta);
+      if (state.swimming) {
+        const kick = now < swimKickUntil.current ? Math.sin((swimKickUntil.current - now) * Math.PI / 0.42) * 0.1 : 0;
+        state.height += (SWIM_PLAYER_Y + kick - state.height) * (1 - Math.exp(-10 * delta));
         state.verticalVelocity = 0;
         state.grounded = true;
+      } else if (!state.grounded) {
+        state.verticalVelocity -= 18 * delta;
+        state.height += state.verticalVelocity * delta;
+        if (state.height <= groundHeight && state.verticalVelocity <= 0) {
+          state.height = groundHeight;
+          state.verticalVelocity = 0;
+          state.grounded = true;
+        }
+      } else {
+        state.height += (groundHeight - state.height) * (1 - Math.exp(-12 * delta));
       }
-    } else {
-      state.height += (groundHeight - state.height) * (1 - Math.exp(-12 * delta));
     }
+    controls.jumpQueued = false;
+    const finalWorldX = state.tileX + BigInt(Math.floor(state.localX));
+    const finalWorldY = state.tileY + BigInt(Math.floor(state.localZ));
+    const finalSurface = sampleLocalSurface(chunkMap, state.tileX, state.tileY, state.localX, state.localZ);
     if (!state.swimming && finalSurface?.walkable && state.grounded) {
       safeGround.current = {
         worldX: finalWorldX,
@@ -410,14 +518,18 @@ function Scene({
       state.swimming = false;
       onChunkChange(safeCx, safeCy, { x: 0, y: 0 });
     }
-    state.movementState = state.swimming
+    state.movementState = state.mantling
+      ? "mantle"
+      : state.climbing
+      ? (moved ? "climb" : "climbIdle")
+      : state.swimming
       ? "swim"
       : !state.grounded
       ? (state.verticalVelocity > 0 ? "jump" : "fall")
       : moved
         ? (running ? "run" : "walk")
         : "idle";
-    if (!pendingRebase.current && (Math.abs(state.localX) >= FLOATING_ORIGIN_THRESHOLD || Math.abs(state.localZ) >= FLOATING_ORIGIN_THRESHOLD)) {
+    if (!state.mantling && !pendingRebase.current && (Math.abs(state.localX) >= FLOATING_ORIGIN_THRESHOLD || Math.abs(state.localZ) >= FLOATING_ORIGIN_THRESHOLD)) {
       const shiftX = Math.trunc(state.localX / CHUNK_SIZE) * CHUNK_SIZE;
       const shiftZ = Math.trunc(state.localZ / CHUNK_SIZE) * CHUNK_SIZE;
       pendingRebase.current = { shiftX, shiftZ };

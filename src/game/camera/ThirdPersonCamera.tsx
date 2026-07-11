@@ -58,7 +58,8 @@ export function ThirdPersonCamera({
       previousOrigin.current.cx = originCx;
       previousOrigin.current.cy = originCy;
     }
-    desiredTarget.set(state.localX, state.height + cameraState.targetHeight, state.localZ);
+    const climbCameraLift = state.climbing || state.mantling ? 0.32 : 0;
+    desiredTarget.set(state.localX, state.height + cameraState.targetHeight + climbCameraLift, state.localZ);
     targetDelta.copy(smoothTarget);
     smoothTarget.lerp(desiredTarget, 1 - Math.exp(-12 * delta));
     targetDelta.subVectors(smoothTarget, targetDelta);

@@ -6,6 +6,7 @@ import { generateChunk } from "./chunkGenerator";
 import { QualityManager } from "../core/QualityManager";
 import { generateMapTile } from "../map/mapTile";
 import { calculateMapMinScale, MAP_ZOOM_MAX_SCALE, zoomLevelToScale } from "../map/mapZoom";
+import { sampleTerrainSurface } from "../player/terrainSurface";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -65,6 +66,14 @@ export function selfTest(): string[] {
     }
   }
   passed.push("Chunk seam");
+
+  const surfaceChunks = new Map([["0,0", chunkA], ["1,0", chunkB]]);
+  const seamLeft = sampleTerrainSurface(surfaceChunks, BigInt(CHUNK_SIZE - 1), 4n, 0.999999, 0.5);
+  const seamRight = sampleTerrainSurface(surfaceChunks, BigInt(CHUNK_SIZE), 4n, 0.000001, 0.5);
+  if (!seamLeft || !seamRight) throw new Error("selfTest failed: terrain surface seam loaded");
+  assert(Math.abs(seamLeft.height - seamRight.height) < 1e-4, "terrain surface height seam");
+  assert(Math.abs(seamLeft.normalY - seamRight.normalY) < 0.15, "terrain surface normal seam");
+  passed.push("Terrain surface");
 
   const mapTile = generateMapTile(world, 0n, 0n);
   assert(mapTile.biomes.length === chunkA.biomes.length, "map tile size");
