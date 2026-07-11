@@ -1,5 +1,6 @@
 import type { ChunkPayload } from "../game/types";
 import { TERRAIN_VISUAL_SUBDIVISIONS } from "../game/constants";
+import type { GameSettings } from "../game/settings";
 
 export type PerformanceStats = {
   fps: number;
@@ -28,13 +29,17 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function collectPerformanceStats(chunks: ChunkPayload[], fps: number): PerformanceStats {
+export function collectPerformanceStats(chunks: ChunkPayload[], fps: number, graphics?: GameSettings["graphics"]): PerformanceStats {
   const perf = performance as PerformanceWithMemory;
   const durations = chunks.map((chunk) => chunk.durationMs);
-  const treeCount = chunks.reduce((sum, chunk) => sum + chunk.trees.length, 0);
-  const rockCount = chunks.reduce((sum, chunk) => sum + chunk.rocks.length, 0);
-  const flowerCount = chunks.reduce((sum, chunk) => sum + chunk.flowers.length, 0);
+  const density = graphics?.vegetationDensity ?? 1;
+  const treeCount = Math.ceil(chunks.reduce((sum, chunk) => sum + chunk.trees.length, 0) * density);
+  const rockCount = Math.ceil(chunks.reduce((sum, chunk) => sum + chunk.rocks.length, 0) * density);
+  const flowerCount = graphics?.flowers === false ? 0 : Math.ceil(chunks.reduce((sum, chunk) => sum + chunk.flowers.length, 0) * density);
   const avgPayloadBytes = chunks.length ? chunks.reduce((sum, chunk) => sum + chunk.payloadBytes, 0) / chunks.length : 0;
+  const terrainStride = graphics?.terrainDetail === "low" ? 4 : graphics?.terrainDetail === "medium" ? 2 : 1;
+  const terrainCells = TERRAIN_VISUAL_SUBDIVISIONS / terrainStride;
+  const terrainTrianglesPerChunk = terrainCells * terrainCells * 2 + TERRAIN_VISUAL_SUBDIVISIONS * 8;
   return {
     fps,
     jsHeap: perf.memory ? `${formatBytes(perf.memory.usedJSHeapSize)} / ${formatBytes(perf.memory.jsHeapSizeLimit)}` : "Browser không hỗ trợ",
@@ -43,7 +48,7 @@ export function collectPerformanceStats(chunks: ChunkPayload[], fps: number): Pe
     treeCount,
     rockCount,
     flowerCount,
-    estimatedTriangles: chunks.length * TERRAIN_VISUAL_SUBDIVISIONS * TERRAIN_VISUAL_SUBDIVISIONS * 2 + treeCount * 11 + rockCount * 20 + flowerCount * 8,
+    estimatedTriangles: chunks.length * terrainTrianglesPerChunk + treeCount * 11 + rockCount * 20 + flowerCount * 8,
     estimatedDrawCalls: chunks.length + (treeCount ? 2 : 0) + (rockCount ? 1 : 0) + (flowerCount ? 1 : 0) + 2,
     avgPayloadBytes,
     chunkPayloadBytes: chunks.reduce((sum, chunk) => sum + chunk.payloadBytes, 0),

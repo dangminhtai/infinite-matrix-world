@@ -13,6 +13,7 @@ import { emptyExploration, type ExplorationStats } from "./ui/ExplorationPanel";
 import { BIOME_NAMES } from "./game/types";
 import { loadSettings, saveSettings, type GameSettings } from "./game/settings";
 import { SettingsMenu } from "./ui/SettingsMenu";
+import { QualityManager, resolveGraphicsQuality, type RuntimeQuality } from "./game/core/QualityManager";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -54,10 +55,16 @@ function addBounded(set: Set<string>, value: string, maxSize: number): boolean {
 export default function App() {
   const [seed, setSeed] = useState(defaultSeedStrings);
   const [settings, setSettings] = useState(loadSettings);
+  const qualityManager = useMemo(() => new QualityManager(settings.graphics.qualityPreset), []);
+  const [runtimeQuality, setRuntimeQuality] = useState<RuntimeQuality>(qualityManager.runtimeLevel);
+  const effectiveSettings = useMemo<GameSettings>(() => ({
+    ...settings,
+    graphics: resolveGraphicsQuality(settings.graphics, runtimeQuality),
+  }), [runtimeQuality, settings]);
   const seedKey = JSON.stringify(seed);
   const manager = useMemo(() => {
     const next = new ChunkManager(seed);
-    next.setActiveRadius(settings.graphics.renderDistance);
+    next.setActiveRadius(effectiveSettings.graphics.renderDistance);
     return next;
   }, []);
   const [chunks, setChunks] = useState<ChunkPayload[]>([]);
@@ -104,7 +111,24 @@ export default function App() {
   const lastExplorationAt = useRef(0);
   const seenDecorKeys = useRef(new Set<string>());
 
-  const performanceStats = useMemo(() => collectPerformanceStats(chunks, stats.fps), [chunks, stats.fps]);
+  const performanceStats = useMemo(
+    () => collectPerformanceStats(chunks, stats.fps, effectiveSettings.graphics),
+    [chunks, effectiveSettings.graphics, stats.fps],
+  );
+
+  useEffect(() => {
+    setRuntimeQuality(qualityManager.setPreset(settings.graphics.qualityPreset));
+  }, [qualityManager, settings.graphics.qualityPreset]);
+
+  useEffect(() => {
+    manager.setActiveRadius(effectiveSettings.graphics.renderDistance);
+    const [cxText, cyText] = lastChunk.current.split(",");
+    const cx = BigInt(cxText);
+    const cy = BigInt(cyText);
+    manager.ensureAround(cx, cy);
+    setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
+    setPending(manager.pending.size);
+  }, [effectiveSettings.graphics.renderDistance, manager]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -122,17 +146,6 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showSeed, showTeleport]);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    void import("./game/world/selfTest").then(({ selfTest }) => {
-      setTests(selfTest());
-    }).catch((err: unknown) => {
-      const e = err instanceof Error ? err : new Error(String(err));
-      setError(e.stack ?? e.message);
-      setStatus("error");
-    });
-  }, []);
 
   useEffect(() => {
     const offChunk = manager.onChunk(() => {
@@ -207,13 +220,7 @@ export default function App() {
   const applySettings = useCallback((next: GameSettings) => {
     saveSettings(next);
     setSettings(next);
-    manager.setActiveRadius(next.graphics.renderDistance);
-    const cx = BigInt(stats.chunkX);
-    const cy = BigInt(stats.chunkY);
-    manager.ensureAround(cx, cy);
-    setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
-    setPending(manager.pending.size);
-  }, [manager, stats.chunkX, stats.chunkY]);
+  }, []);
 
   const runSelfTests = useCallback(() => {
     void import("./game/world/selfTest").then(({ selfTest }) => setTests(selfTest())).catch((err: unknown) => {
@@ -240,6 +247,10 @@ export default function App() {
     const now = performance.now();
     if (now - lastStatsAt.current >= 250) {
       lastStatsAt.current = now;
+      const touchDevice = window.matchMedia("(pointer: coarse)").matches;
+      const targetFps = settings.graphics.fpsLimit || (touchDevice ? 45 : 60);
+      const nextQuality = qualityManager.sample(state.fps, now, targetFps);
+      if (nextQuality) setRuntimeQuality(nextQuality);
       setStats({
         worldX: formatWorldCoordinate(state.tileX, state.localX),
         worldY: formatWorldCoordinate(state.tileY, state.localZ),
@@ -294,11 +305,11 @@ export default function App() {
       localStorage.setItem(`ihmw.exploration.${seedKey}`, JSON.stringify(next));
       return next;
     });
-  }, [chunks, seedKey]);
+  }, [chunks, qualityManager, seedKey, settings.graphics.fpsLimit]);
 
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={settings} paused={showSettings || showSeed || showTeleport} />
+      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={showSettings || showSeed || showTeleport} />
       <HUD
         health={stats.health}
         stamina={stats.stamina}
@@ -308,6 +319,7 @@ export default function App() {
       {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} cameraYaw={stats.cameraYaw} />}
       {showSettings && <SettingsMenu
         settings={settings}
+        runtimeQuality={runtimeQuality}
         seed={seed}
         performance={performanceStats}
         developer={{ worldX: stats.worldX, worldY: stats.worldY, chunkX: stats.chunkX, chunkY: stats.chunkY, originX: stats.originX, originY: stats.originY, loadedChunks: chunks.length, pendingChunks: pending, cacheSize: manager.generated.size, status, tests }}

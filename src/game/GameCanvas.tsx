@@ -21,6 +21,17 @@ function floorDiv(a: bigint, b: bigint): bigint {
   return q;
 }
 
+function FrameLimiter({ limit }: { limit: number }) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (limit <= 0) return;
+    const timer = window.setInterval(invalidate, 1000 / limit);
+    invalidate();
+    return () => window.clearInterval(timer);
+  }, [invalidate, limit]);
+  return null;
+}
+
 export type GameState = {
   tileX: bigint;
   tileY: bigint;
@@ -352,7 +363,13 @@ export const GameCanvas = memo(function GameCanvas(props: {
   const inputRef = useRef<PlayerInputState>({ pressed: new Set(), joystick: { x: 0, y: 0 }, jumpQueued: false, mobileRun: false });
   return (
     <div className="gameShell">
-      <Canvas shadows={props.settings.graphics.shadowQuality !== "off"} camera={{ position: [18, 18, 18], fov: 52 }} dpr={[Math.min(1, props.settings.graphics.pixelRatio), props.settings.graphics.pixelRatio]}>
+      <Canvas
+        shadows={props.settings.graphics.shadowQuality !== "off"}
+        camera={{ position: [18, 18, 18], fov: 52 }}
+        dpr={[Math.min(1, props.settings.graphics.pixelRatio), props.settings.graphics.pixelRatio]}
+        frameloop={props.settings.graphics.fpsLimit > 0 ? "demand" : "always"}
+      >
+        <FrameLimiter limit={props.settings.graphics.fpsLimit} />
         <Scene
           chunks={props.chunks}
           debug={props.debug}

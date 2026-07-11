@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from "../game/settings";
 import type { WorkerStatus } from "../game/types";
 import type { PerformanceStats } from "./PerformancePanel";
 import type { ExplorationStats } from "./ExplorationPanel";
+import type { RuntimeQuality } from "../game/core/QualityManager";
 
 type Tab = "gameplay" | "graphics" | "controls" | "world" | "developer";
 
@@ -43,6 +44,7 @@ function Range({ label, value, min, max, step, onChange, suffix = "" }: { label:
 
 export function SettingsMenu({
   settings,
+  runtimeQuality,
   seed,
   performance,
   developer,
@@ -62,6 +64,7 @@ export function SettingsMenu({
   onResetExploration,
 }: {
   settings: GameSettings;
+  runtimeQuality: RuntimeQuality;
   seed: string[][];
   performance: PerformanceStats;
   developer: DeveloperStats;
@@ -130,6 +133,7 @@ export function SettingsMenu({
 
           {tab === "graphics" && <div className="settingsSection">
             <h3>Chất lượng hiển thị</h3>
+            <div className="runtimeQuality"><span>Runtime</span><strong>{runtimeQuality.toUpperCase()}</strong></div>
             <label className="settingSelect"><span>Preset</span><select value={draft.graphics.qualityPreset} onChange={(event) => update("graphics", { qualityPreset: event.target.value as GameSettings["graphics"]["qualityPreset"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="auto">Auto</option></select></label>
             <Range label="Khoảng render" value={draft.graphics.renderDistance} min={1} max={4} step={1} onChange={(renderDistance) => update("graphics", { renderDistance })} suffix=" chunks" />
             <label className="settingSelect"><span>Chi tiết terrain</span><select value={draft.graphics.terrainDetail} onChange={(event) => update("graphics", { terrainDetail: event.target.value as GameSettings["graphics"]["terrainDetail"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>

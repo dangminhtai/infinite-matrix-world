@@ -263,6 +263,20 @@ button:hover {
   font-size: 12px;
 }
 
+.runtimeQuality {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  color: #b7c4c9;
+  background: #111a1f;
+  border: 1px solid #304149;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.runtimeQuality strong { color: #83cda5; }
+
 .settingsCommands {
   display: flex;
   flex-wrap: wrap;

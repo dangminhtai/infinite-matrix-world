@@ -3,6 +3,7 @@ import { applyTransform, invertTransform } from "./recurrence";
 import { HybridMatrixWorld, floorDiv } from "./hybridWorld";
 import { matMul, matPow } from "./matrix";
 import { generateChunk } from "./chunkGenerator";
+import { QualityManager } from "../core/QualityManager";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -72,6 +73,15 @@ export function selfTest(): string[] {
   assert(origin + BigInt(Math.trunc(local)) === 277n, "floating origin accounting");
   assert(floorDiv(-1n, BigInt(CHUNK_SIZE)) === -1n, "negative floor div");
   passed.push("Floating origin");
+
+  const qualityStart = performance.now();
+  const degradingQuality = new QualityManager("auto", "high");
+  assert(degradingQuality.sample(20, qualityStart + 4_001, 60) === "medium", "auto quality degrades one level");
+  const improvingQuality = new QualityManager("auto", "low");
+  improvingQuality.sample(60, qualityStart + 4_001, 60);
+  improvingQuality.sample(60, qualityStart + 8_002, 60);
+  assert(improvingQuality.sample(60, qualityStart + 12_003, 60) === "medium", "auto quality raises after stable windows");
+  passed.push("Quality manager");
 
   return passed;
 }
