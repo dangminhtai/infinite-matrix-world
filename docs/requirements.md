@@ -863,3 +863,21 @@ Không được đơn giản hóa thuật toán thành `Math.random()`, hash chu
 Khi port sang TypeScript, phải giữ nguyên tính xác định và ý nghĩa toán học của thuật toán.
 
 Trước khi bắt đầu code, hãy đọc toàn bộ yêu cầu, lập kế hoạch ngắn và xác định rõ module nào chạy trong main thread, module nào chạy trong Web Worker. Sau đó triển khai trực tiếp, không chỉ mô tả.
+
+# 25. Yêu cầu bổ sung từ người dùng
+
+## REQ001 - Đọc và hiểu dự án Genshin Impact Fake
+
+Mô tả:
+- Khảo sát toàn bộ mã nguồn của dự án (React + Vite + TypeScript + Three.js).
+- Tìm hiểu các cơ chế lõi: toán học trường hữu hạn (Field Math), ma trận (Matrix), thuật toán lặp (Recurrence), băm tọa độ (Coordinate Hash), nhiễu trị (Value Noise), và kiến trúc thế giới lai (Hybrid Matrix World).
+- Phân tích cơ chế sinh địa hình (Chunk Generator, Web Worker), quản lý tải chunk (Chunk Manager, LRU Cache), dời gốc tọa độ (Floating Origin).
+- Phân tích cơ chế di chuyển của nhân vật (Player, Climbing, Swimming, Collision), góc nhìn camera (Third Person Camera), hệ thống tương tác và chiến đấu (Entity System, Slime, Chest, Collectible).
+- Xác minh tính khả thi của việc xây dựng (Build project thành công).
+
+Tiêu chí hoàn thành:
+- Liệt kê cấu trúc thư mục và vai trò các file chính trong dự án.
+- Giải thích chi tiết các thuật toán lõi và cơ chế hoạt động của game.
+- Build thành công dự án (đã kiểm chứng qua lệnh npm run build).
+- Tạo tài liệu học tập/learned (`docs/learned.md`), danh sách lỗi (`docs/issue_lists.md`), và các bước tiếp theo (`docs/next_step.md`).
+
