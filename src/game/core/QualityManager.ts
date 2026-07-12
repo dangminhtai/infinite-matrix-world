@@ -17,6 +17,14 @@ function detectInitialQuality(): RuntimeQuality {
   return "high";
 }
 
+function detectConstrainedDevice(): boolean {
+  const memory = (navigator as NavigatorWithDeviceMemory).deviceMemory ?? 8;
+  const cores = navigator.hardwareConcurrency || 4;
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const smallViewport = Math.min(window.innerWidth, window.innerHeight) <= 760;
+  return coarsePointer || smallViewport || memory <= 6 || cores <= 6;
+}
+
 function presetLevel(preset: QualityPreset, current: RuntimeQuality): RuntimeQuality {
   return preset === "auto" ? current : preset;
 }
@@ -81,17 +89,18 @@ export class QualityManager {
 }
 
 export function resolveGraphicsQuality(graphics: GameSettings["graphics"], level: RuntimeQuality): GameSettings["graphics"] {
+  const constrainedDevice = detectConstrainedDevice();
   if (level === "low") {
     return {
       ...graphics,
       renderDistance: 1,
       terrainDetail: "low",
-      vegetationDensity: 0.3,
+      vegetationDensity: constrainedDevice ? 0.18 : 0.3,
       shadowQuality: "off",
       waterQuality: "low",
       pixelRatio: Math.min(graphics.pixelRatio, 1),
       fogQuality: "low",
-      decorativeGrass: false,
+      decorativeGrass: constrainedDevice,
       flowers: false,
       distantShadows: false,
     };
@@ -99,15 +108,30 @@ export function resolveGraphicsQuality(graphics: GameSettings["graphics"], level
   if (level === "medium") {
     return {
       ...graphics,
-      renderDistance: 2,
+      renderDistance: constrainedDevice ? 1 : 2,
       terrainDetail: "medium",
-      vegetationDensity: 0.65,
-      shadowQuality: "low",
+      vegetationDensity: constrainedDevice ? 0.24 : 0.65,
+      shadowQuality: constrainedDevice ? "off" : "low",
       waterQuality: "medium",
-      pixelRatio: Math.min(graphics.pixelRatio, 1.25),
+      pixelRatio: Math.min(graphics.pixelRatio, constrainedDevice ? 1 : 1.25),
       fogQuality: "medium",
       decorativeGrass: true,
-      flowers: true,
+      flowers: !constrainedDevice,
+      distantShadows: false,
+    };
+  }
+  if (constrainedDevice) {
+    return {
+      ...graphics,
+      renderDistance: Math.min(2, Math.max(1, graphics.renderDistance)),
+      terrainDetail: "medium",
+      vegetationDensity: Math.min(graphics.vegetationDensity, 0.38),
+      shadowQuality: "low",
+      waterQuality: "medium",
+      pixelRatio: Math.min(graphics.pixelRatio, 1.15),
+      fogQuality: "medium",
+      decorativeGrass: true,
+      flowers: false,
       distantShadows: false,
     };
   }

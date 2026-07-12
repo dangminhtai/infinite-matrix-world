@@ -5,7 +5,19 @@ import { CHUNK_SIZE } from "../constants";
 import type { GameState } from "../GameCanvas";
 import { BIOME_IDS, type ChunkPayload } from "../types";
 
-const GRASS_AREA_SIZE = 36;
+function grassAreaSize(density: number): number {
+  if (density <= 0.28) return 22;
+  if (density <= 0.45) return 28;
+  return 36;
+}
+
+function grassDetail(density: number): number {
+  if (density <= 0.28) return 52;
+  if (density <= 0.45) return 76;
+  if (density <= 0.7) return 112;
+  if (density <= 0.9) return 152;
+  return 192;
+}
 
 const vertexShader = /* glsl */ `
   uniform float uTime;
@@ -68,20 +80,20 @@ const fragmentShader = /* glsl */ `
   }
 `;
 
-function createGrassGeometry(details: number): THREE.BufferGeometry {
+function createGrassGeometry(details: number, areaSize: number): THREE.BufferGeometry {
   const count = details * details;
   const positions = new Float32Array(count * 9);
   const centers = new Float32Array(count * 6);
   const shapes = new Float32Array(count * 6);
   const randoms = new Float32Array(count * 3);
-  const spacing = GRASS_AREA_SIZE / details;
+  const spacing = areaSize / details;
   let blade = 0;
   for (let z = 0; z < details; z += 1) {
     for (let x = 0; x < details; x += 1) {
       const random = ((x * 73856093 ^ z * 19349663) >>> 0) / 0xffffffff;
       const randomB = ((x * 83492791 ^ z * 297657976) >>> 0) / 0xffffffff;
-      const centerX = (x + 0.5 + (random - 0.5) * 0.72) * spacing - GRASS_AREA_SIZE * 0.5;
-      const centerZ = (z + 0.5 + (randomB - 0.5) * 0.72) * spacing - GRASS_AREA_SIZE * 0.5;
+      const centerX = (x + 0.5 + (random - 0.5) * 0.72) * spacing - areaSize * 0.5;
+      const centerZ = (z + 0.5 + (randomB - 0.5) * 0.72) * spacing - areaSize * 0.5;
       const vertex = blade * 3;
       for (let n = 0; n < 3; n += 1) {
         centers[(vertex + n) * 2] = centerX;
@@ -153,8 +165,9 @@ function buildTerrainTexture(chunks: ChunkPayload[], originCx: bigint, originCy:
 }
 
 export function GrassRing({ chunks, originCx, originCy, player, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; player: MutableRefObject<GameState>; density: number }) {
-  const details = density <= 0.4 ? 110 : density <= 0.75 ? 160 : 200;
-  const geometry = useMemo(() => createGrassGeometry(details), [details]);
+  const areaSize = grassAreaSize(density);
+  const details = grassDetail(density);
+  const geometry = useMemo(() => createGrassGeometry(details, areaSize), [areaSize, details]);
   const terrain = useMemo(() => buildTerrainTexture(chunks, originCx, originCy), [chunks, originCx, originCy]);
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader,
@@ -162,13 +175,13 @@ export function GrassRing({ chunks, originCx, originCy, player, density }: { chu
     side: THREE.DoubleSide,
     uniforms: {
       uTime: { value: 0 },
-      uAreaSize: { value: GRASS_AREA_SIZE },
+      uAreaSize: { value: areaSize },
       uPlayer: { value: new THREE.Vector2() },
       uTerrainData: { value: terrain.texture },
       uDataOrigin: { value: terrain.origin },
       uDataSize: { value: terrain.size },
     },
-  }), [terrain]);
+  }), [areaSize, terrain]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);
