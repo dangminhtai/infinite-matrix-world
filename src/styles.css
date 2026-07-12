@@ -848,6 +848,21 @@ button:hover {
   border: 1px solid rgba(16, 32, 42, 0.16);
 }
 
+.loading {
+  inset: 0;
+  right: 0;
+  bottom: 0;
+  max-width: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  color: #e9f1ec;
+  background: #122028;
+  font-size: 15px;
+  font-weight: 650;
+}
+
 .error,
 .errorOverlay {
   color: #a32020;

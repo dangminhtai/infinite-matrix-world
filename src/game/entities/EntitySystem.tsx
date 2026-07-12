@@ -7,6 +7,8 @@ import type { ChunkPayload } from "../types";
 import { addInventoryItem, addModification, loadWorldSave, saveWorld, type Inventory } from "../core/SaveManager";
 import { spawnChunkEntities, type SpawnedEntity } from "../spawn/deterministicSpawn";
 import type { MapEnemy } from "../map/types";
+import { ChestInstances, type ChestInstancesHandle } from "./ChestInstances";
+import { CollectibleInstances, type CollectibleInstancesHandle } from "./CollectibleInstances";
 import { EntityModelErrorBoundary } from "./EntityModelErrorBoundary";
 import { SlimeInstances, type SlimeInstancesHandle, type SlimeKind } from "./SlimeInstances";
 
@@ -63,7 +65,9 @@ export function EntitySystem({
   onEnemyDefeated: (id: string) => void;
 }) {
   const collectibleRef = useRef<THREE.InstancedMesh>(null);
+  const primogemRef = useRef<CollectibleInstancesHandle>(null);
   const chestRef = useRef<THREE.InstancedMesh>(null);
+  const chestModelRef = useRef<ChestInstancesHandle>(null);
   const healingRef = useRef<THREE.InstancedMesh>(null);
   const enemyRef = useRef<THREE.InstancedMesh>(null);
   const slimeRef = useRef<SlimeInstancesHandle>(null);
@@ -76,6 +80,8 @@ export function EntitySystem({
   const lastMapUpdateAt = useRef(0);
   const spawns = useMemo(() => chunks.flatMap(spawnChunkEntities), [chunks]);
   const hasEnemySpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "enemy"), [spawns]);
+  const hasCollectibleSpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "collectible"), [spawns]);
+  const hasChestSpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "chest"), [spawns]);
 
   useEffect(() => {
     saveRef.current = loadWorldSave(seedKey);
@@ -111,7 +117,9 @@ export function EntitySystem({
     const playerWorldX = state.tileX + BigInt(Math.floor(state.localX));
     const playerWorldY = state.tileY + BigInt(Math.floor(state.localZ));
     let collectibleCount = 0;
+    let collectibleFallbackCount = 0;
     let chestCount = 0;
+    let chestFallbackCount = 0;
     let healingCount = 0;
     let enemyCount = 0;
     const slimeCounts: [number, number, number] = [0, 0, 0];
@@ -169,13 +177,28 @@ export function EntitySystem({
       dummy.rotation.set(0, entity.phase, 0);
       if (entity.kind === "collectible") {
         dummy.position.y += Math.sin(now * 2 + entity.phase) * 0.1;
-        dummy.scale.setScalar(0.18);
+        dummy.rotation.y = now * 0.85 + entity.phase;
+        dummy.scale.setScalar(0.3);
         dummy.updateMatrix();
-        collectibleRef.current?.setMatrixAt(collectibleCount++, dummy.matrix);
+        if (primogemRef.current) {
+          primogemRef.current.setMatrixAt(collectibleCount++, dummy.matrix);
+        } else {
+          dummy.scale.setScalar(0.18);
+          dummy.updateMatrix();
+          collectibleRef.current?.setMatrixAt(collectibleFallbackCount++, dummy.matrix);
+          collectibleCount += 1;
+        }
       } else if (entity.kind === "chest") {
-        dummy.scale.set(0.65, 0.42, 0.48);
+        dummy.scale.setScalar(0.82);
         dummy.updateMatrix();
-        chestRef.current?.setMatrixAt(chestCount++, dummy.matrix);
+        if (chestModelRef.current) {
+          chestModelRef.current.setMatrixAt(chestCount++, dummy.matrix);
+        } else {
+          dummy.scale.set(0.65, 0.42, 0.48);
+          dummy.updateMatrix();
+          chestRef.current?.setMatrixAt(chestFallbackCount++, dummy.matrix);
+          chestCount += 1;
+        }
       } else if (entity.kind === "healing") {
         dummy.rotation.y = now * 0.6;
         dummy.scale.set(0.24, 0.55, 0.24);
@@ -267,10 +290,12 @@ export function EntitySystem({
       mesh.count = Math.min(count, MAX_ACTIVE_ENTITIES);
       mesh.instanceMatrix.needsUpdate = true;
     };
-    updateMesh(collectibleRef.current, collectibleCount);
-    updateMesh(chestRef.current, chestCount);
+    updateMesh(collectibleRef.current, collectibleFallbackCount);
+    updateMesh(chestRef.current, chestFallbackCount);
     updateMesh(healingRef.current, healingCount);
     updateMesh(enemyRef.current, enemyCount);
+    primogemRef.current?.commit(collectibleCount - collectibleFallbackCount);
+    chestModelRef.current?.commit(chestCount - chestFallbackCount);
     slimeRef.current?.commit(slimeCounts);
   });
 
@@ -282,6 +307,16 @@ export function EntitySystem({
     {hasEnemySpawns && <EntityModelErrorBoundary>
       <Suspense fallback={null}>
         <SlimeInstances ref={slimeRef} maxCount={MAX_ACTIVE_ENTITIES} />
+      </Suspense>
+    </EntityModelErrorBoundary>}
+    {hasCollectibleSpawns && <EntityModelErrorBoundary>
+      <Suspense fallback={null}>
+        <CollectibleInstances ref={primogemRef} maxCount={MAX_ACTIVE_ENTITIES} />
+      </Suspense>
+    </EntityModelErrorBoundary>}
+    {hasChestSpawns && <EntityModelErrorBoundary>
+      <Suspense fallback={null}>
+        <ChestInstances ref={chestModelRef} maxCount={MAX_ACTIVE_ENTITIES} />
       </Suspense>
     </EntityModelErrorBoundary>}
   </group>;

@@ -14,6 +14,24 @@ const biomeColors: Record<BiomeId, [number, number, number]> = {
   5: [0.44, 0.75, 0.33],
 };
 
+function blendedBiomeColor(biomes: Uint8Array, size: number, x: number, z: number): [number, number, number] {
+  const x0 = Math.max(0, Math.min(size - 1, Math.floor(x)));
+  const z0 = Math.max(0, Math.min(size - 1, Math.floor(z)));
+  const x1 = Math.min(size - 1, x0 + 1);
+  const z1 = Math.min(size - 1, z0 + 1);
+  const tx = Math.max(0, Math.min(1, x - x0));
+  const tz = Math.max(0, Math.min(1, z - z0));
+  const c00 = biomeColors[(biomes[z0 * size + x0] ?? BIOME_IDS.grass) as BiomeId];
+  const c10 = biomeColors[(biomes[z0 * size + x1] ?? BIOME_IDS.grass) as BiomeId];
+  const c01 = biomeColors[(biomes[z1 * size + x0] ?? BIOME_IDS.grass) as BiomeId];
+  const c11 = biomeColors[(biomes[z1 * size + x1] ?? BIOME_IDS.grass) as BiomeId];
+  return [0, 1, 2].map((axis) => {
+    const top = c00[axis] + (c10[axis] - c00[axis]) * tx;
+    const bottom = c01[axis] + (c11[axis] - c01[axis]) * tx;
+    return top + (bottom - top) * tz;
+  }) as [number, number, number];
+}
+
 function idFor(cx: bigint, cy: bigint, lx: number, ly: number, type: string): string {
   return `${cx}:${cy}:${lx}:${ly}:${type}`;
 }
@@ -130,11 +148,20 @@ function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint,
       terrainPositions[stride + 2] = localZ;
 
       const biome = (biomes[logicZ * size + logicX] ?? BIOME_IDS.grass) as BiomeId;
-      const color = biomeColors[biome];
+      const color = blendedBiomeColor(biomes, size, Math.min(size - 1, localX), Math.min(size - 1, localZ));
+      const expandedX = x + 1;
+      const expandedZ = z + 1;
+      const left = visualHeights[expandedZ * expandedRow + expandedX - 1];
+      const right = visualHeights[expandedZ * expandedRow + expandedX + 1];
+      const down = visualHeights[(expandedZ - 1) * expandedRow + expandedX];
+      const up = visualHeights[(expandedZ + 1) * expandedRow + expandedX];
+      const normalY = (step * 2) / (Math.hypot(left - right, step * 2, down - up) || 1);
+      const rockMix = Math.max(biome === BIOME_IDS.mountain ? 0.35 : 0, Math.min(0.82, (0.86 - normalY) * 2.8));
+      const rock: [number, number, number] = height > 5 ? [0.68, 0.69, 0.7] : [0.43, 0.45, 0.46];
       const highlandTint = Math.max(0, Math.min(0.22, height * 0.035));
-      terrainColors[stride] = Math.min(1, color[0] + highlandTint);
-      terrainColors[stride + 1] = Math.min(1, color[1] + highlandTint);
-      terrainColors[stride + 2] = Math.min(1, color[2] + highlandTint);
+      terrainColors[stride] = Math.min(1, color[0] * (1 - rockMix) + rock[0] * rockMix + highlandTint);
+      terrainColors[stride + 1] = Math.min(1, color[1] * (1 - rockMix) + rock[1] * rockMix + highlandTint);
+      terrainColors[stride + 2] = Math.min(1, color[2] * (1 - rockMix) + rock[2] * rockMix + highlandTint);
     }
   }
 

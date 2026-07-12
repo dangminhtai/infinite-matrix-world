@@ -46,7 +46,7 @@ export type GameSettings = {
 export const DEFAULT_SETTINGS: GameSettings = {
   gameplay: {
     cameraSensitivity: 1,
-    cameraDistance: 18,
+    cameraDistance: 10,
     invertY: false,
     autoRun: false,
     showMinimap: true,
@@ -97,7 +97,7 @@ export function loadSettings(): GameSettings {
         ...DEFAULT_SETTINGS.gameplay,
         ...parsed.gameplay,
         cameraSensitivity: clamp(parsed.gameplay?.cameraSensitivity, 1, 0.25, 2.5),
-        cameraDistance: clamp(parsed.gameplay?.cameraDistance, 18, 6, 36),
+        cameraDistance: clamp(parsed.gameplay?.cameraDistance, 10, 6, 14),
       },
       graphics: {
         ...DEFAULT_SETTINGS.graphics,

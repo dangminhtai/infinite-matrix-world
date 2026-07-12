@@ -210,22 +210,26 @@ Trạng thái kiểm chứng: production build đã thành công. Ba model slime
 
 ### Phase 3 - Vật phẩm và rương
 
-- [ ] Chọn mesh primogem cần thiết rồi instance hóa.
+- [x] Chọn mesh primogem cần thiết rồi instance hóa.
 - [ ] Tối ưu rương xuống ngân sách web.
-- [ ] Thêm trạng thái đóng/mở nhưng giữ save ID hiện tại.
-- [ ] Không tải rương nếu vùng render không có rương.
+- [x] Tích hợp rương nguồn hiện tại theo quyết định tạm thời, giữ save ID hiện tại.
+- [x] Không tải rương nếu vùng render không có rương.
+
+Trạng thái kiểm chứng: primogem đã dùng mesh `Primogem_2_Primo_0` từ GLB nguồn và render bằng `InstancedMesh`, có fallback tinh thể hình học khi asset chưa tải hoặc tải lỗi. Logic nhặt vật phẩm, inventory và save ID không đổi. Rương nguồn hiện tại đã được đưa vào runtime bằng `InstancedMesh` nhiều mesh con và chỉ mount khi vùng render có rương. Model rương vẫn chưa được tối ưu; đây là quyết định tạm thời để có hình thật trước, sau đó thay bằng bản runtime nhẹ khi có asset phù hợp.
 
 Điều kiện hoàn thành: nhặt vật phẩm, mở rương, lưu và tải lại không sinh trùng phần thưởng.
 
 ### Phase 4 - Animation có skeleton
 
-Phase này chỉ bắt đầu khi có model/clip phù hợp.
+Phase này chỉ hoàn tất đầy đủ khi có model/clip phù hợp. Với asset hiện tại, chỉ có thể triển khai hạ tầng mixer và fallback procedural.
 
-- [ ] Tích hợp `AnimationMixer`.
-- [ ] Chuyển clip theo `movementState` với cross-fade.
-- [ ] Đồng bộ idle/walk/run/jump/fall/swim/climb/mantle/attack.
+- [x] Tích hợp `AnimationMixer`.
+- [x] Chuyển clip theo `movementState` với cross-fade nếu model có clip tương ứng.
+- [ ] Đồng bộ idle/walk/run/jump/fall/swim/climb/mantle/attack bằng animation thật.
 - [ ] Gắn kiếm vào bone bàn tay hoặc bone lưng.
-- [ ] Không tạo mixer mới trong mỗi frame.
+- [x] Không tạo mixer mới trong mỗi frame.
+
+Trạng thái kiểm chứng: `PlayerGltfModel` đã có clip map cho idle/walk/run/jump/fall/swim/climb/mantle và chỉ tạo mixer khi GLB có `animations`. Model Aether hiện tại không có animation clip, skeleton hoặc bone gắn kiếm, nên chuyển động nhìn thấy vẫn là procedural bob/tilt và kiếm vẫn gắn bằng offset trên lưng.
 
 Điều kiện hoàn thành: không trượt chân rõ rệt, không giật khi chuyển trạng thái và leo/bơi không phá camera.
 

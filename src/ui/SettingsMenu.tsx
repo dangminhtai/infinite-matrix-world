@@ -129,29 +129,17 @@ export function SettingsMenu({
           {tab === "gameplay" && <div className="settingsSection">
             <h3>Camera và giao diện</h3>
             <Range label="Độ nhạy camera" value={draft.gameplay.cameraSensitivity} min={0.25} max={2.5} step={0.05} onChange={(cameraSensitivity) => update("gameplay", { cameraSensitivity })} />
-            <Range label="Khoảng cách camera" value={draft.gameplay.cameraDistance} min={6} max={36} step={1} onChange={(cameraDistance) => update("gameplay", { cameraDistance })} />
             <Toggle label="Đảo trục Y" checked={draft.gameplay.invertY} onChange={(invertY) => update("gameplay", { invertY })} />
             <Toggle label="Tự động chạy" checked={draft.gameplay.autoRun} onChange={(autoRun) => update("gameplay", { autoRun })} />
             <Toggle label="Hiện minimap" checked={draft.gameplay.showMinimap} onChange={(showMinimap) => update("gameplay", { showMinimap })} />
             <Toggle label="Cho teleport từ bản đồ" checked={draft.gameplay.allowMapTeleport} onChange={(allowMapTeleport) => update("gameplay", { allowMapTeleport })} />
-            {!import.meta.env.DEV && <Toggle label="Developer mode" checked={draft.gameplay.developerMode} onChange={(developerMode) => update("gameplay", { developerMode })} />}
           </div>}
 
           {tab === "graphics" && <div className="settingsSection">
             <h3>Chất lượng hiển thị</h3>
             <div className="runtimeQuality"><span>Runtime</span><strong>{runtimeQuality.toUpperCase()}</strong></div>
             <label className="settingSelect"><span>Preset</span><select value={draft.graphics.qualityPreset} onChange={(event) => update("graphics", { qualityPreset: event.target.value as GameSettings["graphics"]["qualityPreset"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="auto">Auto</option></select></label>
-            <Range label="Khoảng render" value={draft.graphics.renderDistance} min={1} max={4} step={1} onChange={(renderDistance) => update("graphics", { renderDistance })} suffix=" chunks" />
-            <label className="settingSelect"><span>Chi tiết terrain</span><select value={draft.graphics.terrainDetail} onChange={(event) => update("graphics", { terrainDetail: event.target.value as GameSettings["graphics"]["terrainDetail"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-            <Range label="Mật độ thực vật" value={draft.graphics.vegetationDensity} min={0.2} max={1} step={0.05} onChange={(vegetationDensity) => update("graphics", { vegetationDensity })} />
-            <label className="settingSelect"><span>Shadow</span><select value={draft.graphics.shadowQuality} onChange={(event) => update("graphics", { shadowQuality: event.target.value as GameSettings["graphics"]["shadowQuality"] })}><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-            <label className="settingSelect"><span>Water</span><select value={draft.graphics.waterQuality} onChange={(event) => update("graphics", { waterQuality: event.target.value as GameSettings["graphics"]["waterQuality"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-            <Range label="Pixel ratio" value={draft.graphics.pixelRatio} min={0.75} max={2} step={0.05} onChange={(pixelRatio) => update("graphics", { pixelRatio })} />
             <label className="settingSelect"><span>Giới hạn FPS</span><select value={draft.graphics.fpsLimit} onChange={(event) => update("graphics", { fpsLimit: Number(event.target.value) as GameSettings["graphics"]["fpsLimit"] })}><option value={0}>Auto</option><option value={30}>30</option><option value={45}>45</option><option value={60}>60</option></select></label>
-            <label className="settingSelect"><span>Fog</span><select value={draft.graphics.fogQuality} onChange={(event) => update("graphics", { fogQuality: event.target.value as GameSettings["graphics"]["fogQuality"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-            <Toggle label="Cỏ trang trí" checked={draft.graphics.decorativeGrass} onChange={(decorativeGrass) => update("graphics", { decorativeGrass })} />
-            <Toggle label="Hoa" checked={draft.graphics.flowers} onChange={(flowers) => update("graphics", { flowers })} />
-            <Toggle label="Shadow xa" checked={draft.graphics.distantShadows} onChange={(distantShadows) => update("graphics", { distantShadows })} />
           </div>}
 
           {tab === "controls" && <div className="settingsSection">
@@ -169,6 +157,18 @@ export function SettingsMenu({
           </div>}
 
           {tab === "developer" && <div className="settingsSection developerSection">
+            <h3>Camera và renderer</h3>
+            <Range label="Khoảng cách camera" value={draft.gameplay.cameraDistance} min={6} max={14} step={1} onChange={(cameraDistance) => update("gameplay", { cameraDistance })} />
+            <Range label="Khoảng render" value={draft.graphics.renderDistance} min={1} max={4} step={1} onChange={(renderDistance) => update("graphics", { renderDistance })} suffix=" chunks" />
+            <label className="settingSelect"><span>Chi tiết terrain</span><select value={draft.graphics.terrainDetail} onChange={(event) => update("graphics", { terrainDetail: event.target.value as GameSettings["graphics"]["terrainDetail"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+            <Range label="Mật độ thực vật" value={draft.graphics.vegetationDensity} min={0.2} max={1} step={0.05} onChange={(vegetationDensity) => update("graphics", { vegetationDensity })} />
+            <label className="settingSelect"><span>Shadow</span><select value={draft.graphics.shadowQuality} onChange={(event) => update("graphics", { shadowQuality: event.target.value as GameSettings["graphics"]["shadowQuality"] })}><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+            <label className="settingSelect"><span>Water</span><select value={draft.graphics.waterQuality} onChange={(event) => update("graphics", { waterQuality: event.target.value as GameSettings["graphics"]["waterQuality"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+            <Range label="Pixel ratio" value={draft.graphics.pixelRatio} min={0.75} max={2} step={0.05} onChange={(pixelRatio) => update("graphics", { pixelRatio })} />
+            <label className="settingSelect"><span>Fog</span><select value={draft.graphics.fogQuality} onChange={(event) => update("graphics", { fogQuality: event.target.value as GameSettings["graphics"]["fogQuality"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+            <Toggle label="Cỏ trang trí" checked={draft.graphics.decorativeGrass} onChange={(decorativeGrass) => update("graphics", { decorativeGrass })} />
+            <Toggle label="Hoa" checked={draft.graphics.flowers} onChange={(flowers) => update("graphics", { flowers })} />
+            <Toggle label="Shadow xa" checked={draft.graphics.distantShadows} onChange={(distantShadows) => update("graphics", { distantShadows })} />
             <h3>Runtime</h3>
             <div className="metricsGrid">
               <span>FPS<strong>{performance.fps}</strong></span><span>Frame avg<strong>{performance.frameTimeMs.toFixed(1)} ms</strong></span><span>Frame max<strong>{performance.frameTimeMaxMs.toFixed(1)} ms</strong></span><span>JS heap<strong>{performance.jsHeap}</strong></span><span>Chunk data<strong>{(performance.chunkPayloadBytes / 1024 / 1024).toFixed(1)} MB</strong></span><span>Worker avg<strong>{performance.workerAvgMs.toFixed(1)} ms</strong></span><span>Worker max<strong>{performance.workerMaxMs.toFixed(1)} ms</strong></span><span>Triangles<strong>{performance.estimatedTriangles.toLocaleString()}</strong></span><span>Draw calls<strong>{performance.estimatedDrawCalls}</strong></span><span>Geometries<strong>{performance.geometryCount}</strong></span><span>Textures<strong>{performance.textureCount}</strong></span><span>Loaded chunks<strong>{developer.loadedChunks}</strong></span><span>Wanted chunks<strong>{developer.pendingChunks}</strong></span><span>In-flight<strong>{developer.inFlightChunks}</strong></span><span>Queued locally<strong>{developer.queuedChunks}</strong></span><span>Cache size<strong>{developer.cacheSize}</strong></span><span>Worker<strong>{developer.status}</strong></span><span>World<strong>{developer.worldX}, {developer.worldY}</strong></span><span>Chunk<strong>{developer.chunkX}, {developer.chunkY}</strong></span><span>Floating origin<strong>{developer.originX}, {developer.originY}</strong></span>
