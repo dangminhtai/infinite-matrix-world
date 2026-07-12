@@ -633,7 +633,12 @@ export const GameCanvas = memo(function GameCanvas(props: {
         shadows={props.settings.graphics.shadowQuality !== "off"}
         camera={{ position: [18, 18, 18], fov: 45 }}
         dpr={[Math.min(1, props.settings.graphics.pixelRatio), props.settings.graphics.pixelRatio]}
-        gl={{ antialias: true }}
+        gl={{
+          antialias: props.settings.graphics.pixelRatio >= 1.25,
+          powerPreference: "high-performance",
+          alpha: false,
+          stencil: false,
+        }}
         frameloop={props.settings.graphics.fpsLimit > 0 ? "demand" : "always"}
       >
         <FrameLimiter limit={props.settings.graphics.fpsLimit} />

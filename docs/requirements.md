@@ -881,3 +881,17 @@ Tiêu chí hoàn thành:
 - Build thành công dự án (đã kiểm chứng qua lệnh npm run build).
 - Tạo tài liệu học tập/learned (`docs/learned.md`), danh sách lỗi (`docs/issue_lists.md`), và các bước tiếp theo (`docs/next_step.md`).
 
+## REQ002 - Tối ưu hóa hiệu năng (minimap, cỏ) và giảm giá nhân vật
+
+Mô tả:
+- Khắc phục hiện tượng drop FPS và lag khi tải cỏ bằng cách tối ưu hóa cơ chế tạo dữ liệu texture địa hình (`DataTexture`) trong `GrassRing`. Thay vì tạo mới texture và mảng `Float32Array` liên tục mỗi khi nạp chunk mới, cần tái sử dụng đối tượng texture và ghi đè dữ liệu trực tiếp khi kích thước không đổi.
+- Khắc phục hiện tượng minimap tải không nổi do render lại mượt mỗi frame trên Main Thread. Triển khai cơ chế cache canvas nền raster cho minimap. Chỉ thực hiện vẽ lại nền raster khi người chơi đi sang ô gạch nguyên mới hoặc khi danh sách chunk thay đổi. Tại mỗi frame di chuyển thông thường, chỉ cần sử dụng `drawImage` để di chuyển (pan) canvas nền đã cache theo độ dời `offsetX/offsetY` và vẽ các marker/hướng.
+- Giảm giá mua các nhân vật trong catalog xuống còn 1/10 so với ban đầu (ví dụ: Nahida từ 600 còn 60, Furina từ 800 còn 80, Hu Tao từ 900 còn 90...).
+
+Tiêu chí hoàn thành:
+- Tệp `GrassRing.tsx` được tối ưu hóa để tái sử dụng `DataTexture` khi kích thước không đổi, giảm thiểu việc cấp phát bộ nhớ động trên GPU và CPU.
+- Tệp `Minimap.tsx` được thiết kế lại để cache canvas offscreen nền raster, loại bỏ việc chạy vòng lặp pixel mượt `drawSmoothBiomeLayer` ở mỗi frame di chuyển.
+- Tệp `characterCatalog.ts` được chỉnh sửa giảm giá tất cả các nhân vật xuống còn 1/10.
+- Dự án build thành công và chạy mượt mà trên cả trình duyệt máy tính và di động.
+
+

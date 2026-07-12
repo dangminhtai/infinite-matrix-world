@@ -41,7 +41,8 @@ self.onmessage = (event: MessageEvent<ChunkWorkerRequest>) => {
       return;
     }
     const activeWorld = getWorld(request.seed);
-    const payload = generateChunk(activeWorld, BigInt(request.cx), BigInt(request.cy));
+    const visualDetail = request.visualDetail || "high";
+    const payload = generateChunk(activeWorld, BigInt(request.cx), BigInt(request.cy), visualDetail);
     const response = { type: "chunkGenerated", requestId: request.requestId, generationId: request.generationId, cx: request.cx, cy: request.cy, payload } satisfies ChunkWorkerResponse;
     transferChunk(response);
   } catch (error) {

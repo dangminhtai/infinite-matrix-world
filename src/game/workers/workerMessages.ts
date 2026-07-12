@@ -7,6 +7,7 @@ export type GenerateChunkRequest = {
   cx: string;
   cy: string;
   seed: string[][];
+  visualDetail: "low" | "medium" | "high";
 };
 
 export type ClearWorkerCacheRequest = {

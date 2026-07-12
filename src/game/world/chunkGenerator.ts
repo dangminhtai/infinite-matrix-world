@@ -79,14 +79,13 @@ function writeNormal(normals: Float32Array, index: number, left: number, right: 
   normals[index + 2] = nz / length;
 }
 
-function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint, heights: Float32Array, biomes: Uint8Array): {
+function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint, heights: Float32Array, biomes: Uint8Array, subdivisions: number): {
   terrainPositions: Float32Array;
   terrainNormals: Float32Array;
   terrainColors: Float32Array;
   terrainIndices: Uint32Array;
 } {
   const size = CHUNK_SIZE;
-  const subdivisions = TERRAIN_VISUAL_SUBDIVISIONS;
   const row = subdivisions + 1;
   const coreVertexCount = row * row;
   const skirtVertexCount = row * 4;
@@ -235,9 +234,25 @@ function createTerrainGeometry(world: HybridMatrixWorld, cx: bigint, cy: bigint,
   return { terrainPositions, terrainNormals, terrainColors, terrainIndices };
 }
 
-export function generateChunk(world: HybridMatrixWorld, cx: bigint, cy: bigint): ChunkPayload {
+export function generateChunk(world: HybridMatrixWorld, cx: bigint, cy: bigint, visualDetail: "low" | "medium" | "high" = "high"): ChunkPayload {
   const started = performance.now();
   const size = CHUNK_SIZE;
+  
+  // Determine subdivision based on visual detail
+  let subdivisions: number;
+  switch (visualDetail) {
+    case "low":
+      subdivisions = 8;
+      break;
+    case "medium":
+      subdivisions = 16;
+      break;
+    case "high":
+    default:
+      subdivisions = 32;
+      break;
+  }
+  
   const heights = new Float32Array((size + 1) * (size + 1));
   const biomes = new Uint8Array(size * size);
   const walkable = new Uint8Array(size * size);
@@ -276,7 +291,7 @@ export function generateChunk(world: HybridMatrixWorld, cx: bigint, cy: bigint):
     }
   }
 
-  const terrain = createTerrainGeometry(world, cx, cy, heights, biomes);
+  const terrain = createTerrainGeometry(world, cx, cy, heights, biomes, subdivisions);
 
   return {
     cx: cx.toString(),

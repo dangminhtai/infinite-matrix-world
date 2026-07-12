@@ -9,16 +9,17 @@ function grassAreaSize(density: number): number {
   if (density <= 0.2) return 14;
   if (density <= 0.3) return 16;
   if (density <= 0.45) return 22;
-  return 36;
+  if (density <= 0.7) return 28;
+  return 32;
 }
 
 function grassDetail(density: number): number {
-  if (density <= 0.2) return 28;
-  if (density <= 0.3) return 36;
-  if (density <= 0.45) return 52;
-  if (density <= 0.7) return 112;
-  if (density <= 0.9) return 152;
-  return 192;
+  if (density <= 0.2) return 18;
+  if (density <= 0.3) return 28;
+  if (density <= 0.45) return 40;
+  if (density <= 0.7) return 56;
+  if (density <= 0.9) return 70;
+  return 80;
 }
 
 const vertexShader = /* glsl */ `
@@ -116,7 +117,7 @@ function createGrassGeometry(details: number, areaSize: number): THREE.BufferGeo
   geometry.setAttribute("bladeCenter", new THREE.BufferAttribute(centers, 2));
   geometry.setAttribute("bladeShape", new THREE.BufferAttribute(shapes, 2));
   geometry.setAttribute("bladeRandom", new THREE.BufferAttribute(randoms, 1));
-  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1_000_000);
+  geometry.computeBoundingSphere();
   return geometry;
 }
 
@@ -169,12 +170,13 @@ function buildTerrainTexture(chunks: ChunkPayload[], originCx: bigint, originCy:
 export function GrassRing({ chunks, originCx, originCy, player, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; player: MutableRefObject<GameState>; density: number }) {
   const areaSize = grassAreaSize(density);
   const details = grassDetail(density);
+  const meshRef = useRef<THREE.Mesh>(null);
   const geometry = useMemo(() => createGrassGeometry(details, areaSize), [areaSize, details]);
   const terrain = useMemo(() => buildTerrainTexture(chunks, originCx, originCy), [chunks, originCx, originCy]);
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader,
     fragmentShader,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     precision: "mediump",
     uniforms: {
       uTime: { value: 0 },
@@ -192,7 +194,11 @@ export function GrassRing({ chunks, originCx, originCy, player, density }: { chu
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uPlayer.value.set(player.current.localX, player.current.localZ);
+    if (meshRef.current) {
+      meshRef.current.position.x = player.current.localX;
+      meshRef.current.position.z = player.current.localZ;
+    }
   });
 
-  return <mesh geometry={geometry} material={material} frustumCulled={false} renderOrder={1} />;
+  return <mesh ref={meshRef} geometry={geometry} material={material} frustumCulled={true} renderOrder={1} />;
 }
