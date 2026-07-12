@@ -21,7 +21,6 @@ import type { CharacterStats } from "./characters/characterProgression";
 import type { EnemyCombatState } from "./entities/EntitySystem";
 import { sampleTerrainSurface, type TerrainSurface } from "./player/terrainSurface";
 import { CLIMBABLE_MAX_NORMAL_Y, CLIMBABLE_MIN_NORMAL_Y, CLIMB_IDLE_STAMINA_PER_SECOND, CLIMB_JUMP_COST, CLIMB_MOVE_STAMINA_PER_SECOND, CLIMB_REATTACH_DELAY, CLIMB_RELEASE_NORMAL_Y, CLIMB_SPEED, CLIMB_VERTICAL_SPEED, MANTLE_DURATION, WALKABLE_NORMAL_Y } from "./player/climbingConfig";
-import { isConstrainedDevice } from "./core/deviceProfile";
 
 function floorDiv(a: bigint, b: bigint): bigint {
   let q = a / b;
@@ -631,7 +630,7 @@ export const GameCanvas = memo(function GameCanvas(props: {
   onEnemyCombatChange: (enemy: EnemyCombatState) => void;
 }) {
   const inputRef = useRef<PlayerInputState>({ pressed: new Set(), joystick: { x: 0, y: 0 }, jumpQueued: false, mobileRun: false, interactQueued: false, attackQueued: false, skillQueued: false });
-  const detailedEntityModels = useMemo(() => !isConstrainedDevice(), []);
+  const detailedEntityModels = true;
   return (
     <div className="gameShell">
       <Canvas

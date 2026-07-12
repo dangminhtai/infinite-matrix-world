@@ -11,6 +11,7 @@ import { migrateInventory } from "../core/SaveManager";
 import { CHARACTER_CATALOG } from "../characters/characterCatalog";
 import { ASCENSION_CAPS, ascensionCostAt, calculateCharacterStats, moraCostForNextLevel, totalMoraCost } from "../characters/characterProgression";
 import { ascendCharacter, createDefaultProfile, migrateWorldWallet, purchaseCharacter, sanitizeProfile, upgradeCharacter, upgradeCharacterMax } from "../characters/ProfileManager";
+import { discoverChunk, floorDivBigInt, isChunkDiscovered, migrateVisitedChunks } from "../exploration/mapExploration";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -175,6 +176,16 @@ export function selfTest(): string[] {
   const repeatedAscension = ascendCharacter(ascendedAether.profile, "aether");
   assert(!repeatedAscension.ok && repeatedAscension.reason === "not-at-ascension", "ascension cannot repeat at same cap");
   passed.push("Character progression");
+
+  assert(floorDivBigInt(7n, 8n) === 0n && floorDivBigInt(8n, 8n) === 1n, "positive exploration floor division");
+  assert(floorDivBigInt(-1n, 8n) === -1n && floorDivBigInt(-8n, 8n) === -1n && floorDivBigInt(-9n, 8n) === -2n, "negative exploration floor division");
+  const migratedExploration = migrateVisitedChunks(["0,0", "7,7", "8,8", "-1,-1", "-8,-8", "-9,-9", "invalid"]);
+  assert(isChunkDiscovered(migratedExploration, 0n, 0n), "origin exploration migration");
+  assert(isChunkDiscovered(migratedExploration, -9n, -9n), "negative exploration migration");
+  assert(!isChunkDiscovered(migratedExploration, 1n, 0n), "undiscovered chunk remains hidden");
+  const discoveredAgain = discoverChunk(migratedExploration, -9n, -9n);
+  assert(discoveredAgain.discoveredSectors["-2,-2"] === migratedExploration.discoveredSectors["-2,-2"], "exploration discovery idempotent");
+  passed.push("Map exploration");
 
   return passed;
 }

@@ -164,7 +164,7 @@ Trạng thái triển khai:
 
 - [x] Resource Timing cho thấy rương cũ tải khoảng 11,8 MB ở startup local.
 - [x] Loại model rương khỏi runtime; dùng fallback procedural đến khi có asset nhẹ.
-- [x] Mobile dùng fallback procedural cho slime và collectible, không decode entity GLB.
+- [x] Slime và Nguyên Thạch dùng model thật trên desktop/mobile theo yêu cầu gameplay; fallback chỉ hiện trong lúc asset đang tải hoặc khi tải lỗi.
 - [x] Desktop vẫn dùng model slime/collectible hiện có.
 - [x] Player chỉ tải model nhân vật đang chọn và kiếm.
 - [x] Production build không còn asset `medieval_chest.glb`.

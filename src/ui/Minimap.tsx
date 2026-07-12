@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { CHUNK_SIZE } from "../game/constants";
 import { recordMinimapDraw } from "../game/core/StartupProfiler";
+import { isChunkDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
 import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import type { BiomeId, ChunkPayload } from "../game/types";
 import { drawSmoothBiomeLayer } from "./mapRaster";
@@ -15,8 +16,9 @@ function canvasSize(): number {
   return Math.min(window.innerWidth, window.innerHeight) <= 760 ? 148 : 172;
 }
 
-export function Minimap({ chunks, worldTileX, worldTileY, offsetX, offsetY, playerYaw, enemies, target, waypoint, onOpenMap }: {
+export function Minimap({ chunks, exploration, worldTileX, worldTileY, offsetX, offsetY, playerYaw, enemies, target, waypoint, onOpenMap }: {
   chunks: ChunkPayload[];
+  exploration: MapExplorationSave;
   worldTileX: string;
   worldTileY: string;
   offsetX: number;
@@ -85,6 +87,7 @@ export function Minimap({ chunks, worldTileX, worldTileY, offsetX, offsetY, play
           getBiome: (wx, wy) => {
             const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
             const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
+            if (!isChunkDiscovered(exploration, cx, cy)) return null;
             const chunk = chunkMap.get(`${cx},${cy}`);
             if (!chunk) return null;
             const x = Number(wx - cx * BigInt(CHUNK_SIZE));
@@ -104,6 +107,9 @@ export function Minimap({ chunks, worldTileX, worldTileY, offsetX, offsetY, play
     ctx.clip();
 
     for (const enemy of enemies) {
+      const enemyCx = floorDiv(BigInt(enemy.worldX), BigInt(CHUNK_SIZE));
+      const enemyCy = floorDiv(BigInt(enemy.worldY), BigInt(CHUNK_SIZE));
+      if (!isChunkDiscovered(exploration, enemyCx, enemyCy)) continue;
       const sx = cssSize / 2 + (Number(BigInt(enemy.worldX) - px) + enemy.offsetX - offsetX) * scale;
       const sy = cssSize / 2 + (Number(BigInt(enemy.worldY) - py) + enemy.offsetY - offsetY) * scale;
       if (Math.hypot(sx - cssSize / 2, sy - cssSize / 2) > cssSize / 2 - 10) continue;
@@ -149,7 +155,7 @@ export function Minimap({ chunks, worldTileX, worldTileY, offsetX, offsetY, play
     ctx.arc(cssSize / 2, cssSize / 2, cssSize / 2 - 5, 0, Math.PI * 2);
     ctx.stroke();
     recordMinimapDraw(performance.now() - startedAt);
-  }, [chunks, enemies, offsetX, offsetY, playerYaw, target, waypoint, worldTileX, worldTileY]);
+  }, [chunks, enemies, exploration, offsetX, offsetY, playerYaw, target, waypoint, worldTileX, worldTileY]);
 
   return <canvas ref={canvasRef} className="minimap" aria-label="Mở bản đồ" role="button" tabIndex={0} onClick={onOpenMap} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpenMap(); }} />;
 }

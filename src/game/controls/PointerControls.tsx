@@ -4,7 +4,8 @@ const INTERACTIVE_SELECTOR = "button,input,select,textarea,.modal,.settingsOverl
 
 export function usePointerControls(onRotate: (dx: number, dy: number, pointerType: string) => void, onZoom: (amount: number) => void, onClickMove: (x: number, y: number) => void) {
   useEffect(() => {
-    let draggingRight = false;
+    let cameraDragging = false;
+    let didRotate = false;
     let cameraPointerId: number | null = null;
     let lastX = 0;
     let lastY = 0;
@@ -25,8 +26,9 @@ export function usePointerControls(onRotate: (dx: number, dy: number, pointerTyp
       downY = e.clientY;
       lastX = e.clientX;
       lastY = e.clientY;
-      draggingRight = e.pointerType === "touch" ? e.clientX > window.innerWidth / 2 : e.button === 2;
-      if (draggingRight) cameraPointerId = e.pointerId;
+      cameraDragging = e.pointerType === "touch" ? e.clientX > window.innerWidth / 2 : e.button === 0 || e.button === 2;
+      didRotate = false;
+      if (cameraDragging) cameraPointerId = e.pointerId;
     };
     const move = (e: PointerEvent) => {
       if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -36,8 +38,13 @@ export function usePointerControls(onRotate: (dx: number, dy: number, pointerTyp
         lastPinch = pinch;
         return;
       }
-      if (!draggingRight || cameraPointerId !== e.pointerId || (e.pointerType === "mouse" && e.buttons === 0)) return;
-      onRotate(e.clientX - lastX, e.clientY - lastY, e.pointerType);
+      if (!cameraDragging || cameraPointerId !== e.pointerId || (e.pointerType === "mouse" && e.buttons === 0)) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) >= 2) {
+        didRotate = true;
+        onRotate(dx, dy, e.pointerType);
+      }
       lastX = e.clientX;
       lastY = e.clientY;
     };
@@ -46,14 +53,14 @@ export function usePointerControls(onRotate: (dx: number, dy: number, pointerTyp
       lastPinch = pinchDistance();
       const wasCameraDrag = cameraPointerId === e.pointerId;
       if (e.target instanceof HTMLElement && e.target.closest(INTERACTIVE_SELECTOR)) {
-        draggingRight = false;
+        cameraDragging = false;
         cameraPointerId = null;
         return;
       }
       const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (!wasCameraDrag && e.button === 0 && moved < 8) onClickMove(e.clientX, e.clientY);
+      if (e.button === 0 && !didRotate && moved < 8) onClickMove(e.clientX, e.clientY);
       if (wasCameraDrag) {
-        draggingRight = false;
+        cameraDragging = false;
         cameraPointerId = null;
       }
     };
@@ -63,7 +70,8 @@ export function usePointerControls(onRotate: (dx: number, dy: number, pointerTyp
     };
     const context = (e: MouseEvent) => e.preventDefault();
     const reset = () => {
-      draggingRight = false;
+      cameraDragging = false;
+      didRotate = false;
       cameraPointerId = null;
       lastPinch = 0;
       pointers.clear();

@@ -25,12 +25,12 @@ export type CharacterDefinition = {
 
 export const CHARACTER_CATALOG: Record<CharacterId, CharacterDefinition> = {
   aether: { id: "aether", name: "Aether", role: "Cân bằng", modelUrl: aetherUrl, purchaseCost: 0, baseHP: 1000, baseATK: 55, baseDEF: 55, modelHeight: 1.58, rotationY: 0 },
-  nahida: { id: "nahida", name: "Nahida", role: "Tấn công", modelUrl: nahidaUrl, purchaseCost: 600, baseHP: 820, baseATK: 72, baseDEF: 42, modelHeight: 1.58, rotationY: 0 },
-  furina: { id: "furina", name: "Furina", role: "HP cân bằng", modelUrl: furinaUrl, purchaseCost: 800, baseHP: 1080, baseATK: 62, baseDEF: 48, modelHeight: 1.58, rotationY: 0 },
-  hu_tao: { id: "hu_tao", name: "Hu Tao", role: "Sát thương cao", modelUrl: huTaoUrl, purchaseCost: 900, baseHP: 900, baseATK: 82, baseDEF: 38, modelHeight: 1.58, rotationY: 0 },
-  zhongli: { id: "zhongli", name: "Zhongli", role: "Phòng thủ", modelUrl: zhongliUrl, purchaseCost: 900, baseHP: 1250, baseATK: 48, baseDEF: 78, modelHeight: 1.58, rotationY: 0 },
-  mavuika: { id: "mavuika", name: "Mavuika", role: "Tấn công bền bỉ", modelUrl: mavuikaUrl, purchaseCost: 1000, baseHP: 1050, baseATK: 78, baseDEF: 52, modelHeight: 1.58, rotationY: 0 },
-  columbina: { id: "columbina", name: "Columbina", role: "Cao cấp cân bằng", modelUrl: columbinaUrl, purchaseCost: 1200, baseHP: 1100, baseATK: 76, baseDEF: 60, modelHeight: 1.58, rotationY: 0 },
+  nahida: { id: "nahida", name: "Nahida", role: "Tấn công", modelUrl: nahidaUrl, purchaseCost: 60, baseHP: 820, baseATK: 72, baseDEF: 42, modelHeight: 1.58, rotationY: 0 },
+  furina: { id: "furina", name: "Furina", role: "HP cân bằng", modelUrl: furinaUrl, purchaseCost: 80, baseHP: 1080, baseATK: 62, baseDEF: 48, modelHeight: 1.58, rotationY: 0 },
+  hu_tao: { id: "hu_tao", name: "Hu Tao", role: "Sát thương cao", modelUrl: huTaoUrl, purchaseCost: 90, baseHP: 900, baseATK: 82, baseDEF: 38, modelHeight: 1.58, rotationY: 0 },
+  zhongli: { id: "zhongli", name: "Zhongli", role: "Phòng thủ", modelUrl: zhongliUrl, purchaseCost: 90, baseHP: 1250, baseATK: 48, baseDEF: 78, modelHeight: 1.58, rotationY: 0 },
+  mavuika: { id: "mavuika", name: "Mavuika", role: "Tấn công bền bỉ", modelUrl: mavuikaUrl, purchaseCost: 100, baseHP: 1050, baseATK: 78, baseDEF: 52, modelHeight: 1.58, rotationY: 0 },
+  columbina: { id: "columbina", name: "Columbina", role: "Cao cấp cân bằng", modelUrl: columbinaUrl, purchaseCost: 120, baseHP: 1100, baseATK: 76, baseDEF: 60, modelHeight: 1.58, rotationY: 0 },
 };
 
 export function isCharacterId(value: unknown): value is CharacterId {

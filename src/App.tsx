@@ -23,6 +23,7 @@ import { addProfileReward, ascendCharacter, loadAndMigratePlayerProfile, profile
 import { CharacterMenu } from "./ui/CharacterMenu";
 import type { EnemyCombatState } from "./game/entities/EntitySystem";
 import { markStartup, recordRuntimeSample } from "./game/core/StartupProfiler";
+import { clearMapExploration, discoverChunk, loadMapExploration, saveMapExploration, type MapExplorationSave } from "./game/exploration/mapExploration";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -145,6 +146,7 @@ export default function App() {
       return emptyExploration(seedKey);
     }
   });
+  const [mapExploration, setMapExploration] = useState<MapExplorationSave>(() => loadMapExploration(seedKey, exploration.visitedChunks));
   const [teleport, setTeleport] = useState<{ x: bigint; y: bigint; token: number } | null>(null);
   const lastChunk = useRef("0,0");
   const lastTile = useRef<{ x: bigint; y: bigint; offsetX: number; offsetY: number } | null>(null);
@@ -273,7 +275,9 @@ export default function App() {
     setTrackedTarget(null);
     setMapWaypoint(null);
     const saved = localStorage.getItem(`ihmw.exploration.${nextKey}`);
-    setExploration(saved ? JSON.parse(saved) as ExplorationStats : emptyExploration(nextKey));
+    const nextExploration = saved ? JSON.parse(saved) as ExplorationStats : emptyExploration(nextKey);
+    setExploration(nextExploration);
+    setMapExploration(loadMapExploration(nextKey, nextExploration.visitedChunks));
     seenDecorKeys.current.clear();
     lastTile.current = null;
     manager.setSeed(nextSeed);
@@ -381,6 +385,7 @@ export default function App() {
     lastTile.current = null;
     localStorage.setItem(`ihmw.exploration.${seedKey}`, JSON.stringify(next));
     setExploration(next);
+    setMapExploration(clearMapExploration(seedKey));
   }, [seedKey]);
 
   const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; yaw: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; maxHealth: number; stamina: number; swimming: boolean; climbing: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
@@ -430,6 +435,11 @@ export default function App() {
     lastExplorationAt.current = now;
     const previous = lastTile.current;
     lastTile.current = { x: worldTileX, y: worldTileY, offsetX, offsetY };
+    setMapExploration((current) => {
+      const next = discoverChunk(current, chunkX, chunkY, worldTileX, worldTileY);
+      if (next !== current) saveMapExploration(seedKey, next);
+      return next;
+    });
     setExploration((current) => {
       const visitedChunks = new Set(current.visitedChunks);
       addBounded(visitedChunks, `${chunkX},${chunkY}`, MAX_VISITED_CHUNKS);
@@ -490,7 +500,7 @@ export default function App() {
         onCharacters={() => setShowCharacters(true)}
         onSettings={() => setShowSettings(true)}
       />
-      {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} onOpenMap={() => setShowMap(true)} />}
+      {settings.gameplay.showMinimap && <Minimap chunks={chunks} exploration={mapExploration} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} onOpenMap={() => setShowMap(true)} />}
       {showSettings && <SettingsMenu
         settings={settings}
         runtimeQuality={runtimeQuality}
@@ -522,7 +532,7 @@ export default function App() {
         onAscend={(id) => commitProfileTransaction(ascendCharacter(profile, id), `${CHARACTER_CATALOG[id].name} đã đột phá`)}
         onClose={() => setShowCharacters(false)}
       />}
-      {showMap && <WorldMap seed={seed} chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={setMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
+      {showMap && <WorldMap seed={seed} chunks={chunks} exploration={mapExploration} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={setMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
       {!worldRevealed && <LoadingOverlay ready={initialWorldReady} text={initialWorldReady ? "Sẵn sàng" : `Đang chuẩn bị thế giới... ${Math.min(chunks.length, 9)}/9`} />}

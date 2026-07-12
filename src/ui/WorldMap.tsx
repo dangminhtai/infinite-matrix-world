@@ -5,6 +5,7 @@ import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import { calculateMapMinScale, clampZoomLevel, MAP_ZOOM_DEFAULT_LEVEL, MAP_ZOOM_MAX_LEVEL, MAP_ZOOM_MAX_SCALE, MAP_ZOOM_MIN_LEVEL, MAX_VISIBLE_MAP_TILES, scaleRatioToZoomDelta, zoomLevelToScale } from "../game/map/mapZoom";
 import type { BiomeId, ChunkPayload } from "../game/types";
 import { drawSmoothBiomeLayer } from "./mapRaster";
+import { isChunkDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
 
 const MAX_MAP_TILES = 512;
 const MAX_IN_FLIGHT = 2;
@@ -34,10 +35,10 @@ function getSeedCache(seedKey: string): Map<string, MapTile> {
   return cache;
 }
 
-export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, playerOffsetX, playerOffsetY, playerYaw, enemies, target, waypoint, allowMapTeleport, onSelectTarget, onSetWaypoint, onTeleportWaypoint, onClose }: {
+export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOffsetX, playerOffsetY, playerYaw, enemies, target, waypoint, allowMapTeleport, onSelectTarget, onSetWaypoint, onTeleportWaypoint, onClose }: {
   seed: string[][];
   chunks: ChunkPayload[];
-  visitedChunks: string[];
+  exploration: MapExplorationSave;
   playerX: string;
   playerY: string;
   playerOffsetX: number;
@@ -184,6 +185,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     const nextWanted = new Set<string>();
     for (let cy = minCy; cy <= maxCy; cy += 1n) for (let cx = minCx; cx <= maxCx; cx += 1n) {
       const key = tileKey(cx, cy);
+      if (!isChunkDiscovered(exploration, cx, cy)) continue;
       nextWanted.add(key);
       if (!cache.current.has(key) && ![...inFlight.current.values()].includes(key)) {
         jobs.push({ key, cx: cx.toString(), cy: cy.toString(), distance: Math.max(Math.abs(Number(cx - centerCx)), Math.abs(Number(cy - centerCy))) });
@@ -193,7 +195,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     jobs.sort((a, b) => a.distance - b.distance);
     queue.current = jobs.slice(0, MAX_VISIBLE_MAP_TILES);
     pumpRef.current();
-  }, [revision, scale]);
+  }, [exploration, revision, scale]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -229,6 +231,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
       getBiome: (wx, wy) => {
         const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
         const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
+        if (!isChunkDiscovered(exploration, cx, cy)) return null;
         const tile = cache.current.get(tileKey(cx, cy));
         if (!tile) return null;
         const x = Number(wx - cx * BigInt(CHUNK_SIZE));
@@ -241,6 +244,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     for (const enemy of enemies) {
       const enemyX = BigInt(enemy.worldX);
       const enemyY = BigInt(enemy.worldY);
+      if (!isChunkDiscovered(exploration, floorDiv(enemyX, BigInt(CHUNK_SIZE)), floorDiv(enemyY, BigInt(CHUNK_SIZE)))) continue;
       if (abs(enemyX - view.x) > visibleTiles || abs(enemyY - view.y) > visibleTiles) continue;
       const point = project(enemyX, enemyY, enemy.offsetX, enemy.offsetY);
       if (point.x < -12 || point.y < -12 || point.x > width + 12 || point.y > height + 12) continue;
@@ -288,7 +292,9 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     ctx.fill();
     ctx.stroke();
     ctx.restore();
-  }, [enemies, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, visitedChunks, waypoint]);
+  }, [enemies, exploration, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, waypoint]);
+
+  const waypointDiscovered = waypoint ? isChunkDiscovered(exploration, floorDiv(BigInt(waypoint.worldX), BigInt(CHUNK_SIZE)), floorDiv(BigInt(waypoint.worldY), BigInt(CHUNK_SIZE))) : false;
 
   return <div className="worldMapOverlay" role="dialog" aria-modal="true" aria-label="Bản đồ thế giới">
     <header className="worldMapHeader">
@@ -363,7 +369,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     {waypoint && <div className="worldMapWaypointPanel">
       <span>Mốc đánh dấu</span>
       <strong>{waypoint.worldX}, {waypoint.worldY}</strong>
-      {allowMapTeleport && <button type="button" onClick={() => onTeleportWaypoint(waypoint)}>Teleport</button>}
+      {allowMapTeleport && waypointDiscovered && <button type="button" onClick={() => onTeleportWaypoint(waypoint)}>Teleport</button>}
     </div>}
     <div className="worldMapLegend"><span><i className="enemyLegend" />Quái</span><span><i className="waypointLegend" />Mốc</span><span><i className="mountainLegend" />Núi</span><span><i className="playerLegend" />Người chơi</span><small>Kéo để khám phá · Nhấn quái để theo dõi · Nhấn map để đặt mốc</small></div>
   </div>;
