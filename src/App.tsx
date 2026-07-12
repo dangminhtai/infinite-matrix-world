@@ -171,13 +171,20 @@ export default function App() {
 
   useEffect(() => {
     manager.setActiveRadius(effectiveSettings.graphics.renderDistance);
+    
+    // Set visual detail based on terrain detail setting
+    const visualDetail = effectiveSettings.graphics.terrainDetail === "low" ? "low" 
+      : effectiveSettings.graphics.terrainDetail === "medium" ? "medium" 
+      : "high";
+    manager.setVisualDetail(visualDetail);
+    
     const [cxText, cyText] = lastChunk.current.split(",");
     const cx = BigInt(cxText);
     const cy = BigInt(cyText);
     manager.ensureAround(cx, cy);
     setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
     setPending(manager.pendingCount);
-  }, [effectiveSettings.graphics.renderDistance, manager]);
+  }, [effectiveSettings.graphics.renderDistance, effectiveSettings.graphics.terrainDetail, manager]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

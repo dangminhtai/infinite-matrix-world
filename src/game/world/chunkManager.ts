@@ -20,6 +20,7 @@ export class ChunkManager {
   private requestId = 1;
   private generationId = 0;
   private activeRadius = ACTIVE_RADIUS;
+  private visualDetail: "low" | "medium" | "high" = "high";
   private readonly requestKeys = new Map<number, string>();
   private readonly listeners = new Set<Listener>();
   private readonly errorListeners = new Set<ErrorListener>();
@@ -114,6 +115,10 @@ export class ChunkManager {
     this.activeRadius = Math.max(1, Math.min(4, Math.round(radius)));
   }
 
+  setVisualDetail(detail: "low" | "medium" | "high"): void {
+    this.visualDetail = detail;
+  }
+
   ensureAround(cx: bigint, cy: bigint, direction: { x: number; y: number } = { x: 0, y: 0 }): void {
     const wanted: [bigint, bigint, number][] = [];
     const directionLength = Math.hypot(direction.x, direction.y);
@@ -162,7 +167,15 @@ export class ChunkManager {
       const requestId = this.requestId++;
       this.pending.add(next.key);
       this.requestKeys.set(requestId, next.key);
-      this.worker.postMessage({ type: "generateChunk", requestId, generationId: this.generationId, cx: next.cx.toString(), cy: next.cy.toString(), seed: this.seed });
+      this.worker.postMessage({ 
+        type: "generateChunk", 
+        requestId, 
+        generationId: this.generationId, 
+        cx: next.cx.toString(), 
+        cy: next.cy.toString(), 
+        seed: this.seed,
+        visualDetail: this.visualDetail
+      });
     }
   }
 

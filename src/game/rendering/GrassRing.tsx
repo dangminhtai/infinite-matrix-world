@@ -4,6 +4,8 @@ import * as THREE from "three";
 import { CHUNK_SIZE } from "../constants";
 import type { GameState } from "../GameCanvas";
 import { BIOME_IDS, type ChunkPayload } from "../types";
+import { selectGrassBackend, getCurrentBackend } from "./GrassCapability";
+import { GrassCPUInstanced } from "./GrassCPUInstanced";
 
 function grassAreaSize(density: number): number {
   if (density <= 0.2) return 14;
@@ -121,13 +123,33 @@ function createGrassGeometry(details: number, areaSize: number): THREE.BufferGeo
   return geometry;
 }
 
-function buildTerrainTexture(chunks: ChunkPayload[], originCx: bigint, originCy: bigint) {
+function buildTerrainTexture(chunks: ChunkPayload[], originCx: bigint, originCy: bigint, playerX: number, playerZ: number) {
   if (chunks.length === 0) {
     const texture = new THREE.DataTexture(new Float32Array([0, 1, 0, 0]), 1, 1, THREE.RGBAFormat, THREE.FloatType);
     texture.needsUpdate = true;
     return { texture, origin: new THREE.Vector2(), size: new THREE.Vector2(1, 1) };
   }
-  const relative = chunks.map((chunk) => ({ chunk, x: Number(BigInt(chunk.cx) - originCx) * CHUNK_SIZE, z: Number(BigInt(chunk.cy) - originCy) * CHUNK_SIZE }));
+  
+  // Limit to chunks within grass radius (about 20 units) to reduce texture size
+  const grassRadius = 24; // slightly larger than max areaSize/2
+  const playerChunkX = Math.floor(playerX / CHUNK_SIZE);
+  const playerChunkZ = Math.floor(playerZ / CHUNK_SIZE);
+  
+  const relevantChunks = chunks.filter(chunk => {
+    const cx = Number(BigInt(chunk.cx) - originCx);
+    const cy = Number(BigInt(chunk.cy) - originCy);
+    const distX = Math.abs(cx - playerChunkX) * CHUNK_SIZE;
+    const distZ = Math.abs(cy - playerChunkZ) * CHUNK_SIZE;
+    return Math.hypot(distX, distZ) <= grassRadius + CHUNK_SIZE;
+  });
+  
+  if (relevantChunks.length === 0) {
+    const texture = new THREE.DataTexture(new Float32Array([0, 1, 0, 0]), 1, 1, THREE.RGBAFormat, THREE.FloatType);
+    texture.needsUpdate = true;
+    return { texture, origin: new THREE.Vector2(), size: new THREE.Vector2(1, 1) };
+  }
+  
+  const relative = relevantChunks.map((chunk) => ({ chunk, x: Number(BigInt(chunk.cx) - originCx) * CHUNK_SIZE, z: Number(BigInt(chunk.cy) - originCy) * CHUNK_SIZE }));
   const minX = Math.min(...relative.map((entry) => entry.x));
   const minZ = Math.min(...relative.map((entry) => entry.z));
   const maxX = Math.max(...relative.map((entry) => entry.x + CHUNK_SIZE));
@@ -168,11 +190,19 @@ function buildTerrainTexture(chunks: ChunkPayload[], originCx: bigint, originCy:
 }
 
 export function GrassRing({ chunks, originCx, originCy, player, density }: { chunks: ChunkPayload[]; originCx: bigint; originCy: bigint; player: MutableRefObject<GameState>; density: number }) {
+  const backend = useMemo(() => selectGrassBackend(), []);
+  
+  // Use CPU-instanced backend for constrained devices
+  if (backend === "cpu-instanced") {
+    return <GrassCPUInstanced chunks={chunks} originCx={originCx} originCy={originCy} player={player} density={density} />;
+  }
+  
+  // Terrain-texture backend for powerful devices
   const areaSize = grassAreaSize(density);
   const details = grassDetail(density);
   const meshRef = useRef<THREE.Mesh>(null);
   const geometry = useMemo(() => createGrassGeometry(details, areaSize), [areaSize, details]);
-  const terrain = useMemo(() => buildTerrainTexture(chunks, originCx, originCy), [chunks, originCx, originCy]);
+  const terrain = useMemo(() => buildTerrainTexture(chunks, originCx, originCy, player.current.localX, player.current.localZ), [chunks, originCx, originCy, player.current.localX, player.current.localZ]);
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader,
     fragmentShader,
