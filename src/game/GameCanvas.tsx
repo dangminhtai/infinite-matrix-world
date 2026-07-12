@@ -609,8 +609,9 @@ export const GameCanvas = memo(function GameCanvas(props: {
     <div className="gameShell">
       <Canvas
         shadows={props.settings.graphics.shadowQuality !== "off"}
-        camera={{ position: [18, 18, 18], fov: 52 }}
+        camera={{ position: [18, 18, 18], fov: 45 }}
         dpr={[Math.min(1, props.settings.graphics.pixelRatio), props.settings.graphics.pixelRatio]}
+        gl={{ antialias: true }}
         frameloop={props.settings.graphics.fpsLimit > 0 ? "demand" : "always"}
       >
         <FrameLimiter limit={props.settings.graphics.fpsLimit} />

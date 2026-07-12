@@ -225,8 +225,7 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
       residualX: view.residualX,
       residualY: view.residualY,
       pixelsPerTile: scale,
-      resolutionScale: 0.35,
-      blurPixels: Math.max(1.2, Math.min(4.5, scale * 1.15)),
+      resolutionScale: 0.5,
       getBiome: (wx, wy) => {
         const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
         const cy = floorDiv(wy, BigInt(CHUNK_SIZE));

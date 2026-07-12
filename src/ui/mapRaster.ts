@@ -24,7 +24,6 @@ export function drawSmoothBiomeLayer({
   residualY = 0,
   pixelsPerTile,
   resolutionScale = 1,
-  blurPixels = 0,
   getBiome,
 }: {
   ctx: CanvasRenderingContext2D;
@@ -36,7 +35,6 @@ export function drawSmoothBiomeLayer({
   residualY?: number;
   pixelsPerTile: number;
   resolutionScale?: number;
-  blurPixels?: number;
   getBiome: (x: bigint, y: bigint) => BiomeId | null;
 }): void {
   const rasterWidth = Math.max(1, Math.ceil(width * resolutionScale));
@@ -81,7 +79,6 @@ export function drawSmoothBiomeLayer({
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.save();
-  if (blurPixels > 0) ctx.filter = `blur(${blurPixels}px)`;
   ctx.drawImage(canvas, 0, 0, rasterWidth, rasterHeight, 0, 0, width, height);
   ctx.restore();
 }

@@ -67,7 +67,6 @@ export function Minimap({
       residualX: -offsetX * scale,
       residualY: -offsetY * scale,
       pixelsPerTile: scale,
-      blurPixels: 1.2,
       getBiome: (wx, wy) => {
         const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
         const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
