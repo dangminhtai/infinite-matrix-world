@@ -34,7 +34,7 @@ export function HUD({
   onSettings: () => void;
 }) {
   const trackedLabel = trackedTarget ? "Mục tiêu" : waypoint ? "Mốc đánh dấu" : "";
-  const trackedText = trackedTarget ? `Echo · ${targetDistance}` : waypoint ? `Waypoint · ${waypointDistance}` : "";
+  const trackedText = trackedTarget ? `Slime · ${targetDistance}` : waypoint ? `Waypoint · ${waypointDistance}` : "";
   const onClearTracked = trackedTarget ? onClearTarget : onClearWaypoint;
   return (
     <div className="gameHud">

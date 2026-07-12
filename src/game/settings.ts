@@ -1,3 +1,5 @@
+import { DEFAULT_CAMERA_DISTANCE, PLAYER_CAMERA_MAX, PLAYER_CAMERA_MIN } from "./camera/cameraConfig";
+
 export type QualityPreset = "low" | "medium" | "high" | "auto";
 export type DetailLevel = "low" | "medium" | "high";
 export type ShadowQuality = "off" | "low" | "medium" | "high";
@@ -46,7 +48,7 @@ export type GameSettings = {
 export const DEFAULT_SETTINGS: GameSettings = {
   gameplay: {
     cameraSensitivity: 1,
-    cameraDistance: 10,
+    cameraDistance: DEFAULT_CAMERA_DISTANCE,
     invertY: false,
     autoRun: false,
     showMinimap: true,
@@ -97,7 +99,9 @@ export function loadSettings(): GameSettings {
         ...DEFAULT_SETTINGS.gameplay,
         ...parsed.gameplay,
         cameraSensitivity: clamp(parsed.gameplay?.cameraSensitivity, 1, 0.25, 2.5),
-        cameraDistance: clamp(parsed.gameplay?.cameraDistance, 10, 6, 14),
+        cameraDistance: typeof parsed.gameplay?.cameraDistance === "number" && parsed.gameplay.cameraDistance <= PLAYER_CAMERA_MAX
+          ? clamp(parsed.gameplay.cameraDistance, DEFAULT_CAMERA_DISTANCE, PLAYER_CAMERA_MIN, PLAYER_CAMERA_MAX)
+          : DEFAULT_CAMERA_DISTANCE,
       },
       graphics: {
         ...DEFAULT_SETTINGS.graphics,

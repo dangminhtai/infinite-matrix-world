@@ -17,13 +17,24 @@ function storageKey(seedKey: string): string {
   return `ihmw.world-save.${seedKey}`;
 }
 
+export function migrateInventory(source: Inventory): Inventory {
+  const inventory = { ...source };
+  if (inventory.matrix_crystal) inventory.primogem = (inventory.primogem ?? 0) + inventory.matrix_crystal;
+  if (inventory.matrix_shard) inventory.mora = (inventory.mora ?? 0) + inventory.matrix_shard * 100;
+  if (inventory.echo_core) inventory.slime_condensate = (inventory.slime_condensate ?? 0) + inventory.echo_core;
+  delete inventory.matrix_crystal;
+  delete inventory.matrix_shard;
+  delete inventory.echo_core;
+  return inventory;
+}
+
 export function loadWorldSave(seedKey: string): WorldSave {
   const raw = localStorage.getItem(storageKey(seedKey));
   if (!raw) return emptySave();
   try {
     const parsed = JSON.parse(raw) as Partial<WorldSave>;
     return {
-      inventory: parsed.inventory && typeof parsed.inventory === "object" ? parsed.inventory : {},
+      inventory: parsed.inventory && typeof parsed.inventory === "object" ? migrateInventory(parsed.inventory) : {},
       collected: Array.isArray(parsed.collected) ? parsed.collected.slice(-MAX_MODIFICATIONS_PER_TYPE) : [],
       openedChests: Array.isArray(parsed.openedChests) ? parsed.openedChests.slice(-MAX_MODIFICATIONS_PER_TYPE) : [],
       defeatedEnemies: Array.isArray(parsed.defeatedEnemies) ? parsed.defeatedEnemies.slice(-MAX_MODIFICATIONS_PER_TYPE) : [],

@@ -99,6 +99,7 @@ export default function App() {
   const [showTeleport, setShowTeleport] = useState(false);
   const [showSettings, setShowSettings] = useState(() => import.meta.env.DEV && new URLSearchParams(window.location.search).has("settings"));
   const [pending, setPending] = useState(0);
+  const [worldRevealed, setWorldRevealed] = useState(false);
   const [stats, setStats] = useState({
     worldX: "0",
     worldY: "0",
@@ -149,6 +150,15 @@ export default function App() {
     [chunks, effectiveSettings.graphics, stats],
   );
   const initialWorldReady = chunks.length >= 9;
+
+  useEffect(() => {
+    if (!initialWorldReady) {
+      setWorldRevealed(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setWorldRevealed(true), 280);
+    return () => window.clearTimeout(timer);
+  }, [initialWorldReady]);
 
   useEffect(() => {
     setRuntimeQuality(qualityManager.setPreset(settings.graphics.qualityPreset));
@@ -400,7 +410,7 @@ export default function App() {
 
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={!initialWorldReady || showSettings || showSeed || showTeleport || showInventory || showMap} seedKey={seedKey} onInventoryChange={setInventory} onInteractionChange={setInteractionLabel} onNotify={notify} onMapEnemiesChange={updateMapEnemies} onEnemyDefeated={handleEnemyDefeated} />
+      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={!worldRevealed || showSettings || showSeed || showTeleport || showInventory || showMap} seedKey={seedKey} onInventoryChange={setInventory} onInteractionChange={setInteractionLabel} onNotify={notify} onMapEnemiesChange={updateMapEnemies} onEnemyDefeated={handleEnemyDefeated} />
       <HUD
         health={stats.health}
         stamina={stats.stamina}
@@ -444,7 +454,7 @@ export default function App() {
       {showMap && <WorldMap seed={seed} chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={setMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
-      {!initialWorldReady && <LoadingOverlay text={`Đang chuẩn bị thế giới... ${Math.min(chunks.length, 9)}/9`} />}
+      {!worldRevealed && <LoadingOverlay ready={initialWorldReady} text={initialWorldReady ? "Sẵn sàng" : `Đang chuẩn bị thế giới... ${Math.min(chunks.length, 9)}/9`} />}
       {error && <pre className="errorOverlay">{error}</pre>}
     </main>
   );

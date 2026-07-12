@@ -1,6 +1,6 @@
 export const PLAYER_MODEL_HEIGHT = 1.58;
 
-export const PLAYER_MODEL_ROTATION_Y = Math.PI;
+export const PLAYER_MODEL_ROTATION_Y = 0;
 
 export const SWORD_MODEL_LENGTH = 0.9;
 

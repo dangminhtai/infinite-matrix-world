@@ -4,8 +4,8 @@ import type { MapTile } from "../game/map/mapTile";
 import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import { calculateMapMinScale, clampZoomLevel, MAP_ZOOM_DEFAULT_LEVEL, MAP_ZOOM_MAX_LEVEL, MAP_ZOOM_MAX_SCALE, MAP_ZOOM_MIN_LEVEL, MAX_VISIBLE_MAP_TILES, scaleRatioToZoomDelta, zoomLevelToScale } from "../game/map/mapZoom";
 import type { BiomeId, ChunkPayload } from "../game/types";
+import { drawSmoothBiomeLayer } from "./mapRaster";
 
-const colors: Record<BiomeId, string> = { 0: "#4a9ac7", 1: "#969da3", 2: "#28744a", 3: "#80664e", 4: "#c7b36f", 5: "#65a958" };
 const MAX_MAP_TILES = 512;
 const MAX_IN_FLIGHT = 2;
 const ZOOM_BUTTON_STEP = 8;
@@ -210,38 +210,33 @@ export function WorldMap({ seed, chunks, visitedChunks, playerX, playerY, player
     ctx.fillStyle = "#17242a";
     ctx.fillRect(0, 0, width, height);
     const view = center.current;
-    const visited = new Set(visitedChunks);
     const visibleTiles = BigInt(Math.ceil(Math.max(width, height) / scale) + CHUNK_SIZE * 2);
     const project = (x: bigint, y: bigint, ox = 0, oy = 0) => ({
       x: width / 2 + Number(x - view.x) * scale + ox * scale + view.residualX,
       y: height / 2 + Number(y - view.y) * scale + oy * scale + view.residualY,
     });
 
-    for (const tile of cache.current.values()) {
-      const chunkX = BigInt(tile.cx) * BigInt(CHUNK_SIZE);
-      const chunkY = BigInt(tile.cy) * BigInt(CHUNK_SIZE);
-      if (abs(chunkX - view.x) > visibleTiles || abs(chunkY - view.y) > visibleTiles) continue;
-      for (let y = 0; y < CHUNK_SIZE; y += 1) for (let x = 0; x < CHUNK_SIZE; x += 1) {
-        const point = project(chunkX + BigInt(x), chunkY + BigInt(y));
-        const biome = (tile.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
-        ctx.fillStyle = colors[biome];
-        ctx.fillRect(point.x, point.y, Math.max(1, scale + 0.35), Math.max(1, scale + 0.35));
-        if (biome === 1 && scale >= 3) {
-          ctx.fillStyle = "rgba(52, 58, 65, 0.38)";
-          ctx.fillRect(point.x, point.y + scale * 0.62, Math.max(1, scale + 0.35), Math.max(1, scale * 0.12));
-        }
-      }
-      const point = project(chunkX, chunkY);
-      if (scale >= 1) {
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.13)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
-      }
-      if (!visited.has(tileKey(tile.cx, tile.cy))) {
-        ctx.fillStyle = "rgba(7, 13, 16, 0.3)";
-        ctx.fillRect(point.x, point.y, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
-      }
-    }
+    drawSmoothBiomeLayer({
+      ctx,
+      width,
+      height,
+      centerX: view.x,
+      centerY: view.y,
+      residualX: view.residualX,
+      residualY: view.residualY,
+      pixelsPerTile: scale,
+      resolutionScale: 0.35,
+      blurPixels: Math.max(1.2, Math.min(4.5, scale * 1.15)),
+      getBiome: (wx, wy) => {
+        const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
+        const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
+        const tile = cache.current.get(tileKey(cx, cy));
+        if (!tile) return null;
+        const x = Number(wx - cx * BigInt(CHUNK_SIZE));
+        const y = Number(wy - cy * BigInt(CHUNK_SIZE));
+        return (tile.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
+      },
+    });
 
     enemyHits.current = [];
     for (const enemy of enemies) {

@@ -2,15 +2,13 @@ import { useEffect, useRef } from "react";
 import { CHUNK_SIZE } from "../game/constants";
 import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import type { BiomeId, ChunkPayload } from "../game/types";
+import { drawSmoothBiomeLayer } from "./mapRaster";
 
-const biomeColors: Record<BiomeId, string> = {
-  0: "#4aa3df",
-  1: "#a3a7ad",
-  2: "#2f8f4e",
-  3: "#9b7653",
-  4: "#d9c27c",
-  5: "#71bf54",
-};
+function floorDiv(value: bigint, divisor: bigint): bigint {
+  let result = value / divisor;
+  if (value < 0n && value % divisor !== 0n) result -= 1n;
+  return result;
+}
 
 export function Minimap({
   chunks,
@@ -59,36 +57,27 @@ export function Minimap({
     const px = BigInt(worldTileX || "0");
     const py = BigInt(worldTileY || "0");
     const scale = 3.2;
-    for (const chunk of chunks) {
-      const cx = BigInt(chunk.cx);
-      const cy = BigInt(chunk.cy);
-      const chunkBaseX = cx * BigInt(CHUNK_SIZE);
-      const chunkBaseY = cy * BigInt(CHUNK_SIZE);
-      for (let y = 0; y < CHUNK_SIZE; y += 1) {
-        for (let x = 0; x < CHUNK_SIZE; x += 1) {
-          const wx = chunkBaseX + BigInt(x);
-          const wy = chunkBaseY + BigInt(y);
-          const sx = cssSize / 2 + (Number(wx - px) - offsetX) * scale;
-          const sy = cssSize / 2 + (Number(wy - py) - offsetY) * scale;
-          if (sx < -4 || sy < -4 || sx > cssSize + 4 || sy > cssSize + 4) continue;
-          const biome = (chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
-          ctx.fillStyle = biomeColors[biome];
-          ctx.fillRect(sx, sy, scale + 0.5, scale + 0.5);
-          if (biome === 1) {
-            ctx.fillStyle = "rgba(55, 61, 68, 0.45)";
-            ctx.fillRect(sx, sy + scale * 0.58, scale + 0.5, 1);
-          }
-        }
-      }
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(
-        cssSize / 2 + (Number(chunkBaseX - px) - offsetX) * scale,
-        cssSize / 2 + (Number(chunkBaseY - py) - offsetY) * scale,
-        CHUNK_SIZE * scale,
-        CHUNK_SIZE * scale,
-      );
-    }
+    const chunkMap = new Map(chunks.map((chunk) => [`${chunk.cx},${chunk.cy}`, chunk]));
+    drawSmoothBiomeLayer({
+      ctx,
+      width: cssSize,
+      height: cssSize,
+      centerX: px,
+      centerY: py,
+      residualX: -offsetX * scale,
+      residualY: -offsetY * scale,
+      pixelsPerTile: scale,
+      blurPixels: 1.2,
+      getBiome: (wx, wy) => {
+        const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
+        const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
+        const chunk = chunkMap.get(`${cx},${cy}`);
+        if (!chunk) return null;
+        const x = Number(wx - cx * BigInt(CHUNK_SIZE));
+        const y = Number(wy - cy * BigInt(CHUNK_SIZE));
+        return (chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
+      },
+    });
 
     for (const enemy of enemies) {
       const sx = cssSize / 2 + (Number(BigInt(enemy.worldX) - px) + enemy.offsetX - offsetX) * scale;

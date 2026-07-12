@@ -32,7 +32,7 @@ export function SeedEditor({ seed, onApply, onClose }: { seed: string[][]; onApp
   return (
     <div className="modal">
       <div className="panel">
-        <h2>Seed matrix</h2>
+        <h2>Seed thế giới</h2>
         <label>
           Kích thước
           <select value={size} onChange={(e) => resize(Number(e.target.value))}>
@@ -50,7 +50,7 @@ export function SeedEditor({ seed, onApply, onClose }: { seed: string[][]; onApp
         </div>
         {size > 2 && (
           <p className="warning">
-            Seed {size}x{size} nặng hơn rõ vì worker phải chạy nhiều phép BigInt matrix/recurrence hơn cho mỗi điểm terrain.
+            Seed {size}x{size} cần nhiều thời gian hơn để sinh địa hình trong worker.
           </p>
         )}
         {error && <p className="error">{error}</p>}

@@ -7,6 +7,7 @@ import { QualityManager } from "../core/QualityManager";
 import { generateMapTile } from "../map/mapTile";
 import { calculateMapMinScale, MAP_ZOOM_MAX_SCALE, zoomLevelToScale } from "../map/mapZoom";
 import { sampleTerrainSurface } from "../player/terrainSurface";
+import { migrateInventory } from "../core/SaveManager";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -115,6 +116,15 @@ export function selfTest(): string[] {
   improvingQuality.sample(60, qualityStart + 8_002, 60);
   assert(improvingQuality.sample(60, qualityStart + 12_003, 60) === "medium", "auto quality raises after stable windows");
   passed.push("Quality manager");
+
+  const migrated = migrateInventory({ matrix_crystal: 2, matrix_shard: 3, echo_core: 4, mora: 25 });
+  assert(migrated.primogem === 2, "inventory primogem migration");
+  assert(migrated.mora === 325, "inventory mora migration");
+  assert(migrated.slime_condensate === 4, "inventory slime migration");
+  assert(!("matrix_crystal" in migrated) && !("matrix_shard" in migrated) && !("echo_core" in migrated), "legacy inventory removed");
+  const migratedTwice = migrateInventory(migrated);
+  assert(migratedTwice.primogem === 2 && migratedTwice.mora === 325 && migratedTwice.slime_condensate === 4, "inventory migration idempotent");
+  passed.push("Inventory migration");
 
   return passed;
 }

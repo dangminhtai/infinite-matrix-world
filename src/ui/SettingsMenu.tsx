@@ -5,6 +5,8 @@ import type { WorkerStatus } from "../game/types";
 import type { PerformanceStats } from "./PerformancePanel";
 import type { ExplorationStats } from "./ExplorationPanel";
 import type { RuntimeQuality } from "../game/core/QualityManager";
+import { DEVELOPER_CAMERA_MAX, PLAYER_CAMERA_MIN } from "../game/camera/cameraConfig";
+import { PRODUCT_NAME } from "../config/branding";
 
 type Tab = "gameplay" | "graphics" | "controls" | "world" | "developer";
 
@@ -119,7 +121,7 @@ export function SettingsMenu({
     <div className="settingsOverlay" role="dialog" aria-modal="true" aria-label="Cài đặt">
       <section className="settingsPanel">
         <header className="settingsHeader">
-          <div><span className="settingsEyebrow">Infinite Matrix World</span><h2>Cài đặt</h2></div>
+          <div><span className="settingsEyebrow">{PRODUCT_NAME}</span><h2>Cài đặt</h2></div>
           <button className="iconButton" type="button" onClick={onClose} title="Đóng" aria-label="Đóng">×</button>
         </header>
         <nav className="settingsTabs" aria-label="Nhóm cài đặt">
@@ -158,7 +160,7 @@ export function SettingsMenu({
 
           {tab === "developer" && <div className="settingsSection developerSection">
             <h3>Camera và renderer</h3>
-            <Range label="Khoảng cách camera" value={draft.gameplay.cameraDistance} min={6} max={14} step={1} onChange={(cameraDistance) => update("gameplay", { cameraDistance })} />
+            <Range label="Khoảng cách camera" value={draft.gameplay.cameraDistance} min={PLAYER_CAMERA_MIN} max={DEVELOPER_CAMERA_MAX} step={0.5} onChange={(cameraDistance) => update("gameplay", { cameraDistance })} />
             <Range label="Khoảng render" value={draft.graphics.renderDistance} min={1} max={4} step={1} onChange={(renderDistance) => update("graphics", { renderDistance })} suffix=" chunks" />
             <label className="settingSelect"><span>Chi tiết terrain</span><select value={draft.graphics.terrainDetail} onChange={(event) => update("graphics", { terrainDetail: event.target.value as GameSettings["graphics"]["terrainDetail"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
             <Range label="Mật độ thực vật" value={draft.graphics.vegetationDensity} min={0.2} max={1} step={0.05} onChange={(vegetationDensity) => update("graphics", { vegetationDensity })} />

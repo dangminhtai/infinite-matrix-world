@@ -29,7 +29,7 @@ function floorDiv(value: bigint, divisor: bigint): bigint {
 }
 
 function entityLabel(entity: RuntimeEntity): string {
-  if (entity.kind === "collectible") return "Nhặt tinh thể";
+  if (entity.kind === "collectible") return "Nhặt Nguyên Thạch";
   if (entity.kind === "chest") return "Mở rương";
   if (entity.kind === "healing") return "Hồi phục";
   return "";
@@ -241,13 +241,13 @@ export function EntitySystem({
     if (actions.current.interactQueued && nearestInteraction) {
       if (nearestInteraction.kind === "collectible") {
         addModification(save.collected, nearestInteraction.id);
-        addInventoryItem(save, "matrix_crystal", 1);
-        onNotify("Đã nhận Tinh thể ma trận");
+        addInventoryItem(save, "primogem", 1);
+        onNotify("Đã nhận 1 Nguyên Thạch");
         activeIds.current.delete(nearestInteraction.id);
       } else if (nearestInteraction.kind === "chest") {
         addModification(save.openedChests, nearestInteraction.id);
-        addInventoryItem(save, "matrix_shard", 3);
-        onNotify("Rương: +3 Mảnh ma trận");
+        addInventoryItem(save, "mora", 500);
+        onNotify("Rương: +500 Mora");
         activeIds.current.delete(nearestInteraction.id);
       } else if (nearestInteraction.kind === "healing" && now - nearestInteraction.lastUsedAt > 3) {
         nearestInteraction.lastUsedAt = now;
@@ -263,12 +263,12 @@ export function EntitySystem({
       entity.hp -= damage;
       if (entity.hp > 0) return;
       addModification(save.defeatedEnemies, entity.id);
-      addInventoryItem(save, "echo_core", 1);
+      addInventoryItem(save, "slime_condensate", 1);
       activeIds.current.delete(entity.id);
       onEnemyDefeated(entity.id);
       saveWorld(seedKey, save);
       onInventoryChange({ ...save.inventory });
-      onNotify("Đã đánh bại Echo");
+      onNotify("Đã nhận 1 Dịch Slime");
     };
     if (actions.current.attackQueued && nearestEnemy && nearestEnemyDistance <= 2.2) damageEnemy(nearestEnemy, 34);
     actions.current.attackQueued = false;
@@ -300,7 +300,7 @@ export function EntitySystem({
   });
 
   return <group>
-    <instancedMesh ref={collectibleRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><octahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#55d6d0" emissive="#174d55" emissiveIntensity={0.8} /></instancedMesh>
+    <instancedMesh ref={collectibleRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><tetrahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#d8a6ff" emissive="#5d2f82" emissiveIntensity={0.7} /></instancedMesh>
     <instancedMesh ref={chestRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#b57a37" roughness={0.72} /></instancedMesh>
     <instancedMesh ref={healingRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><cylinderGeometry args={[0.55, 0.55, 1, 8]} /><meshStandardMaterial color="#79df9a" emissive="#225f3b" emissiveIntensity={0.65} /></instancedMesh>
     <instancedMesh ref={enemyRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} castShadow frustumCulled={false}><dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#b84d69" roughness={0.62} /></instancedMesh>

@@ -861,7 +861,11 @@ button:hover {
   background: #122028;
   font-size: 15px;
   font-weight: 650;
+  opacity: 1;
+  transition: opacity 280ms ease;
 }
+
+.loading.ready { opacity: 0; }
 
 .error,
 .errorOverlay {

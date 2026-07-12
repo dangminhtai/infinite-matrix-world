@@ -13,6 +13,7 @@ import { dampAngle, type MoveInput } from "./player/movement";
 import { sampleChunkHeight } from "./player/collision";
 import { GrassRing } from "./rendering/GrassRing";
 import type { GameSettings } from "./settings";
+import { DEFAULT_CAMERA_DISTANCE, DEFAULT_CAMERA_PITCH } from "./camera/cameraConfig";
 import { EntitySystem } from "./entities/EntitySystem";
 import type { Inventory } from "./core/SaveManager";
 import type { MapEnemy } from "./map/types";
@@ -160,7 +161,7 @@ function Scene({
   const pendingRebase = useRef<{ shiftX: number; shiftZ: number } | null>(null);
   const pendingTeleport = useRef<{ tileX: bigint; tileY: bigint; localX: number; localZ: number; height?: number } | null>(null);
   const [renderOrigin, setRenderOrigin] = useState({ cx: 0n, cy: 0n });
-  const cameraAngles = useRef<CameraState>({ yaw: Math.PI * 0.75, pitch: Math.PI / 7, distance: 10, targetHeight: 1.15 });
+  const cameraAngles = useRef<CameraState>({ yaw: Math.PI * 0.75, pitch: DEFAULT_CAMERA_PITCH, distance: DEFAULT_CAMERA_DISTANCE, targetHeight: 1.15 });
   const fpsRef = useRef({ frames: 0, elapsed: 0, fps: 0, frameTimeMs: 0, frameTimeMaxMs: 0 });
   const swimKickUntil = useRef(0);
   const safeGround = useRef({ worldX: 8n, worldY: 8n, offsetX: 0, offsetZ: 0, height: 0 });

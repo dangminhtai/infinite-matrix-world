@@ -1,155 +1,67 @@
-# Infinite Hybrid Matrix World
+# Genshin Impact Fake
 
-Game khám phá thế giới 3D sinh thủ tục trên trình duyệt, xây dựng bằng React, TypeScript và Three.js. Thế giới được tạo xác định từ seed và tọa độ `BigInt`: cùng seed và cùng tọa độ luôn sinh lại cùng địa hình mà không cần lưu toàn bộ bản đồ trong bộ nhớ.
+Game thế giới mở góc nhìn thứ ba chạy trực tiếp trên trình duyệt, lấy cảm hứng từ cảm giác khám phá, bản đồ và chiến đấu của Genshin Impact. Đây là dự án fan-made phục vụ học tập, không phải sản phẩm chính thức của HoYoverse.
 
-## Tính năng hiện tại
+## Tính năng
 
-- Thế giới sinh theo chunk với tọa độ rất lớn và floating origin.
-- Web Worker sinh địa hình ngoài main thread, có hàng đợi ưu tiên và giới hạn request đồng thời.
-- Biome gồm nước, núi, rừng, đất, cát và đồng cỏ.
-- Terrain LOD theo khoảng cách; cây, đá, hoa và entity sử dụng `InstancedMesh`.
-- Camera góc nhìn thứ ba độc lập với hướng di chuyển, có zoom và chống xuyên địa hình.
-- Nhân vật có trạng thái đứng, đi, chạy, nhảy, rơi và bơi.
-- Nhân vật có thể bám và leo sườn núi, hao stamina, nhảy khỏi vách và leo qua mép.
-- Bơi thường, bơi nhanh tốn stamina, mất máu khi kiệt sức và hồi sinh tại vị trí đất an toàn.
-- Vật phẩm, rương, điểm hồi phục và quái sinh xác định theo seed/chunk.
-- Tấn công thường, kỹ năng có hồi chiêu, AI quái gần và túi đồ có stack.
-- Minimap, thống kê khám phá, thông số renderer và chất lượng đồ họa tự động.
-- Bản đồ toàn màn hình mở bằng `M`, có pan/zoom, fog khám phá và marker quái.
-- Chọn quái trên bản đồ để theo dõi hướng đi và khoảng cách theo mét.
-- Giao diện responsive cho desktop, màn hình cảm ứng và thiết bị di động.
-- Seed editor, teleport `BigInt`, xóa cache và công cụ developer.
+- Thế giới procedural có thể tiếp tục sinh khi người chơi di chuyển.
+- Địa hình, núi, nước, cỏ và cây được dựng theo seed.
+- Nhân vật Aether, slime, rương và vật phẩm GLB.
+- Đi bộ, chạy, nhảy, bơi, leo trèo và mantle.
+- Minimap, bản đồ thế giới, waypoint và theo dõi slime.
+- Nhặt Nguyên Thạch, mở rương nhận Mora và hạ slime nhận Dịch Slime.
+- Web Worker sinh chunk và hệ chất lượng tự động giữ FPS.
+- Hỗ trợ bàn phím, chuột và điều khiển cảm ứng.
 
-NPC và nhiệm vụ không nằm trong phạm vi MVP hiện tại.
+## Chạy dự án
 
-## Điều khiển
-
-### Máy tính
-
-| Phím/thao tác | Chức năng |
-| --- | --- |
-| `W A S D` | Di chuyển tương đối theo hướng camera |
-| `Shift` | Chạy hoặc bơi nhanh |
-| `Space` | Nhảy; đạp nước khi bơi; nhảy khỏi vách khi leo |
-| `E` | Nhặt vật phẩm, mở rương hoặc dùng điểm hồi phục |
-| `J` | Tấn công thường |
-| `K` | Kỹ năng |
-| `I` | Mở hoặc đóng túi đồ |
-| `M` | Mở hoặc đóng bản đồ thế giới |
-| `Esc` | Mở Settings hoặc đóng cửa sổ đang mở |
-| Kéo chuột | Xoay camera |
-| Con lăn | Phóng gần hoặc xa camera |
-| Nhấp địa hình | Tự di chuyển tới vị trí được chọn |
-
-Các phím gameplay có thể đổi trong `Settings > Controls`.
-
-### Điện thoại và màn hình cảm ứng
-
-- Joystick bên trái để di chuyển và bơi.
-- Vuốt vùng chơi để xoay camera; pinch để zoom.
-- Các nút `RUN`, `E`, `ATK`, `SKL` và nút nhảy nằm ở cụm điều khiển bên phải.
-- `RUN` được giữ để chạy hoặc bơi nhanh.
-- Chạm minimap để mở bản đồ thế giới.
-
-## Cài đặt và chạy
-
-Yêu cầu máy đã cài Node.js và npm.
+Yêu cầu Node.js 20 trở lên.
 
 ```bash
-git clone https://github.com/dangminhtai/infinite-matrix-world.git
-cd infinite-matrix-world
 npm install
 npm run dev
 ```
 
-Vite sẽ in địa chỉ local trong terminal, mặc định thường là `http://localhost:5173`.
+Mở `http://localhost:5173/`.
 
 Build production:
 
 ```bash
 npm run build
-```
-
-Xem thử bản build:
-
-```bash
 npm run preview
 ```
 
-## Kiến trúc
+## Điều khiển
+
+- `W/A/S/D`: di chuyển.
+- `Shift`: chạy.
+- `Space`: nhảy.
+- `E`: tương tác.
+- `J`: tấn công.
+- `K`: kỹ năng.
+- `M`: bản đồ thế giới.
+- `I`: túi đồ.
+- Kéo chuột: xoay camera.
+- Con lăn: zoom camera trong giới hạn gameplay.
+
+## Cấu trúc chính
 
 ```text
 src/
-├── game/
-│   ├── camera/       Camera góc nhìn thứ ba và camera collision
-│   ├── controls/     Chuột, cảm ứng, joystick và nút mobile
-│   ├── core/         Quality manager và save manager
-│   ├── entities/     Vật phẩm, rương, hồi phục, quái và combat nhẹ
-│   ├── player/       Va chạm, chuyển động và model nhân vật
-│   ├── rendering/    Terrain, nước, cây, đá, hoa, cỏ và bầu trời
-│   ├── spawn/        Sinh entity xác định
-│   ├── workers/      Web Worker sinh chunk 3D và tile bản đồ theo viewport
-│   └── world/        Ma trận, recurrence, noise, chunk và self-test
-└── ui/               HUD, minimap, settings, inventory và thống kê
+├── config/       Tên và cấu hình trình bày
+├── game/         Gameplay, camera, worker, terrain và entity
+├── models/       Model GLB
+└── ui/           HUD, bản đồ, settings và inventory
 ```
 
-### Luồng sinh thế giới
-
-1. Vị trí người chơi xác định chunk đang cần.
-2. `ChunkManager` ưu tiên các chunk gần và gửi tối đa số request đã giới hạn sang Worker.
-3. Worker sinh địa hình và decor từ seed, tọa độ chunk và salt.
-4. Main thread nhận payload, dựng geometry và chỉ giữ vùng hoạt động quanh người chơi.
-5. Chunk đã rời xa được loại khỏi vùng render; cache có giới hạn để tránh tăng bộ nhớ vô hạn.
-
-Entity không được lưu đầy đủ cho toàn thế giới. Game chỉ lưu các thay đổi thưa như vật phẩm đã nhặt, rương đã mở và quái đã bị hạ.
-
-## Dữ liệu lưu cục bộ
-
-Game sử dụng `localStorage` cho:
-
-- Seed hiện tại.
-- Cấu hình gameplay, đồ họa và điều khiển.
-- Thống kê khám phá riêng theo seed.
-- Inventory và thay đổi thế giới riêng theo seed.
-
-Dữ liệu này thuộc trình duyệt và thiết bị hiện tại, chưa có đồng bộ tài khoản hoặc máy chủ. Xóa dữ liệu trang web trong trình duyệt cũng sẽ xóa tiến trình đã lưu.
-
-## Kiểm thử
-
-Chạy kiểm tra build và TypeScript:
+## Kiểm tra
 
 ```bash
 npm run build
 ```
 
-Trong development, `selfTest()` kiểm tra:
+Self-test chạy trong chế độ phát triển và kiểm tra tính xác định của thế giới, biên chunk, cache, floating origin, map tile và quality manager.
 
-- Recurrence thuận/ngược.
-- Path independence.
-- Di chuyển giữa các chunk lân cận.
-- Tái sinh cùng hash tại tọa độ thường và tọa độ `BigInt` rất lớn.
-- Seam địa hình và normal giữa hai chunk.
-- Giới hạn cache.
-- Tính đúng của floating origin và phép chia tọa độ âm.
-- Quality manager tự giảm/tăng chất lượng.
+## Lưu ý bản quyền
 
-Các phép kiểm thử thủ công quan trọng gồm di chuyển qua biên chunk, teleport xa, camera desktop/mobile, bơi ra vào bờ, tương tác, combat và load lại save.
-
-## Hiệu năng
-
-Developer panel cung cấp FPS, frame time, JS heap khi trình duyệt hỗ trợ, dung lượng payload chunk, worker time, triangles, draw calls, geometry, texture và trạng thái hàng đợi chunk.
-
-Chỉ số `JS heap` không phải tổng RAM của tab, GPU hay toàn hệ thống. Mức FPS thực tế phụ thuộc GPU, độ phân giải, trình duyệt và preset đồ họa.
-
-## Giới hạn hiện tại
-
-- Chưa có NPC, nhiệm vụ, hệ thống trang bị hoặc backend multiplayer.
-- Save chưa đồng bộ giữa các trình duyệt hoặc thiết bị.
-- Chưa hoàn thành báo cáo endurance 100 chunk và số liệu hiệu năng trước/sau.
-- Bundle Three.js vẫn tương đối lớn và còn có thể tối ưu thêm bằng tải lười/code splitting.
-
-## Tài liệu
-
-- [`docs/requirements.md`](docs/requirements.md): yêu cầu và thiết kế nền tảng ban đầu.
-- [`docs/checklists.md`](docs/checklists.md): danh sách cải tiến kỹ thuật và kiểm thử.
-- [`docs/improve.md`](docs/improve.md): kế hoạch triển khai theo Phase 0-5.
+Tên Genshin Impact, nhân vật và các tài sản liên quan thuộc chủ sở hữu tương ứng. Cần kiểm tra giấy phép từng model trước khi phát hành công khai hoặc sử dụng thương mại.
