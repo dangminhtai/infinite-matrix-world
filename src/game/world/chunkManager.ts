@@ -2,6 +2,7 @@ import { ACTIVE_RADIUS, MAX_GENERATED_CHUNKS, MAX_RENDERED_CHUNKS } from "../con
 import type { ChunkPayload } from "../types";
 import { LruCache } from "./lruCache";
 import type { ChunkWorkerResponse } from "../workers/workerMessages";
+import { markStartup } from "../core/StartupProfiler";
 
 type Listener = (payload: ChunkPayload) => void;
 type ErrorListener = (message: string) => void;
@@ -20,12 +21,12 @@ export class ChunkManager {
   private requestId = 1;
   private generationId = 0;
   private activeRadius = ACTIVE_RADIUS;
-  private visualDetail: "low" | "medium" | "high" = "high";
   private readonly requestKeys = new Map<number, string>();
   private readonly listeners = new Set<Listener>();
   private readonly errorListeners = new Set<ErrorListener>();
 
   constructor(private seed: string[][]) {
+    markStartup("worker-created");
     this.worker.onmessage = (event: MessageEvent<ChunkWorkerResponse>) => {
       const msg = event.data;
       if (msg.generationId !== this.generationId) return;
@@ -44,6 +45,8 @@ export class ChunkManager {
         return;
       }
       const key = this.key(BigInt(msg.cx), BigInt(msg.cy));
+      markStartup("first-chunk-ready");
+      if (msg.cx === "0" && msg.cy === "0") markStartup("center-chunk-ready");
       this.wantedJobs.delete(key);
       this.generated.set(key, msg.payload);
       if (this.wantedKeys.has(key)) {
@@ -115,10 +118,6 @@ export class ChunkManager {
     this.activeRadius = Math.max(1, Math.min(4, Math.round(radius)));
   }
 
-  setVisualDetail(detail: "low" | "medium" | "high"): void {
-    this.visualDetail = detail;
-  }
-
   ensureAround(cx: bigint, cy: bigint, direction: { x: number; y: number } = { x: 0, y: 0 }): void {
     const wanted: [bigint, bigint, number][] = [];
     const directionLength = Math.hypot(direction.x, direction.y);
@@ -167,15 +166,7 @@ export class ChunkManager {
       const requestId = this.requestId++;
       this.pending.add(next.key);
       this.requestKeys.set(requestId, next.key);
-      this.worker.postMessage({ 
-        type: "generateChunk", 
-        requestId, 
-        generationId: this.generationId, 
-        cx: next.cx.toString(), 
-        cy: next.cy.toString(), 
-        seed: this.seed,
-        visualDetail: this.visualDetail
-      });
+      this.worker.postMessage({ type: "generateChunk", requestId, generationId: this.generationId, cx: next.cx.toString(), cy: next.cy.toString(), seed: this.seed });
     }
   }
 

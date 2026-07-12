@@ -1,6 +1,8 @@
 import type { ChunkPayload } from "../game/types";
 import { TERRAIN_VISUAL_SUBDIVISIONS } from "../game/constants";
 import type { GameSettings } from "../game/settings";
+import { getStartupProfile, type StartupProfile } from "../game/core/StartupProfiler";
+import { grassBladeBudget } from "../game/rendering/grassConfig";
 
 export type PerformanceStats = {
   fps: number;
@@ -18,6 +20,8 @@ export type PerformanceStats = {
   frameTimeMaxMs: number;
   geometryCount: number;
   textureCount: number;
+  startup: StartupProfile;
+  grassBlades: number;
 };
 
 type PerformanceWithMemory = Performance & {
@@ -60,6 +64,8 @@ export function collectPerformanceStats(chunks: ChunkPayload[], fps: number, gra
     frameTimeMaxMs: renderer?.frameTimeMaxMs ?? 0,
     geometryCount: renderer?.geometries ?? 0,
     textureCount: renderer?.textures ?? 0,
+    startup: getStartupProfile(),
+    grassBlades: graphics?.decorativeGrass === false ? 0 : grassBladeBudget(density),
   };
 }
 

@@ -28,6 +28,10 @@ type DeveloperStats = {
 
 const KEY_OPTIONS = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "KeyJ", "KeyK", "KeyL", "ShiftLeft", "Space"];
 
+function formatMs(value: number | null): string {
+  return value === null ? "Đang chờ" : `${value.toFixed(1)} ms`;
+}
+
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
   return (
     <label className="settingToggle">
@@ -174,6 +178,27 @@ export function SettingsMenu({
             <h3>Runtime</h3>
             <div className="metricsGrid">
               <span>FPS<strong>{performance.fps}</strong></span><span>Frame avg<strong>{performance.frameTimeMs.toFixed(1)} ms</strong></span><span>Frame max<strong>{performance.frameTimeMaxMs.toFixed(1)} ms</strong></span><span>JS heap<strong>{performance.jsHeap}</strong></span><span>Chunk data<strong>{(performance.chunkPayloadBytes / 1024 / 1024).toFixed(1)} MB</strong></span><span>Worker avg<strong>{performance.workerAvgMs.toFixed(1)} ms</strong></span><span>Worker max<strong>{performance.workerMaxMs.toFixed(1)} ms</strong></span><span>Triangles<strong>{performance.estimatedTriangles.toLocaleString()}</strong></span><span>Draw calls<strong>{performance.estimatedDrawCalls}</strong></span><span>Geometries<strong>{performance.geometryCount}</strong></span><span>Textures<strong>{performance.textureCount}</strong></span><span>Loaded chunks<strong>{developer.loadedChunks}</strong></span><span>Wanted chunks<strong>{developer.pendingChunks}</strong></span><span>In-flight<strong>{developer.inFlightChunks}</strong></span><span>Queued locally<strong>{developer.queuedChunks}</strong></span><span>Cache size<strong>{developer.cacheSize}</strong></span><span>Worker<strong>{developer.status}</strong></span><span>World<strong>{developer.worldX}, {developer.worldY}</strong></span><span>Chunk<strong>{developer.chunkX}, {developer.chunkY}</strong></span><span>Floating origin<strong>{developer.originX}, {developer.originY}</strong></span>
+            </div>
+            <h3>Startup</h3>
+            <div className="metricsGrid">
+              <span>App → Worker<strong>{formatMs(performance.startup.appToWorkerMs)}</strong></span>
+              <span>Worker → Chunk đầu<strong>{formatMs(performance.startup.workerToFirstChunkMs)}</strong></span>
+              <span>Worker → Chunk tâm<strong>{formatMs(performance.startup.workerToCenterChunkMs)}</strong></span>
+              <span>Chunk tâm → Điều khiển<strong>{formatMs(performance.startup.centerToControllableMs)}</strong></span>
+              <span>Tổng đến điều khiển<strong>{formatMs(performance.startup.appToControllableMs)}</strong></span>
+              <span>Đủ vùng gần<strong>{formatMs(performance.startup.nearbyChunksReadyMs)}</strong></span>
+              <span>Nhân vật sẵn sàng<strong>{formatMs(performance.startup.characterReadyMs)}</strong></span>
+              <span>FPS thấp nhất<strong>{performance.startup.minimumFps ?? "Đang chờ"}</strong></span>
+              <span>Frame max phiên<strong>{performance.startup.maximumFrameMs.toFixed(1)} ms</strong></span>
+              <span>Cỏ hiện tại<strong>{performance.grassBlades.toLocaleString()} blade</strong></span>
+              <span>Minimap redraw<strong>{performance.startup.minimapDraws}</strong></span>
+              <span>Minimap trung bình<strong>{performance.startup.minimapAverageMs.toFixed(2)} ms</strong></span>
+              <span>Minimap tối đa<strong>{performance.startup.minimapMaximumMs.toFixed(2)} ms</strong></span>
+            </div>
+            <h3>GLB đã tải</h3>
+            <div className="metricsGrid">
+              {performance.startup.glbResources.length === 0 && <span>Resource Timing<strong>Chưa có GLB</strong></span>}
+              {performance.startup.glbResources.map((resource) => <span key={resource.name}>{resource.name}<strong>{resource.durationMs.toFixed(1)} ms · {resource.transferKB.toFixed(0)} KB</strong></span>)}
             </div>
             <h3>Khám phá</h3>
             <div className="metricsGrid"><span>Chunks đã thăm<strong>{exploration.visitedChunks.length}</strong></span><span>Quãng đường<strong>{exploration.distanceTiles.toFixed(1)}</strong></span><span>Cây đã thấy<strong>{exploration.seenTrees}</strong></span><span>Đá đã thấy<strong>{exploration.seenRocks}</strong></span></div>

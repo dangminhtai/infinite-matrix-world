@@ -6,6 +6,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import swordUrl from "../../models/aethers_lumines_sword.glb?url";
 import type { GameState } from "../GameCanvas";
 import { CHARACTER_CATALOG, type CharacterId } from "../characters/characterCatalog";
+import { markStartup } from "../core/StartupProfiler";
 import {
   PLAYER_MODEL_HEIGHT,
   PLAYER_MODEL_ROTATION_Y,
@@ -74,6 +75,7 @@ export function PlayerGltfModel({ state, characterId }: { state: MutableRefObjec
   }, [characterModel.animations, preparedCharacter.object]);
 
   useEffect(() => {
+    markStartup("character-ready");
     activeAction.current = null;
     return () => {
       animationRig?.mixer.stopAllAction();

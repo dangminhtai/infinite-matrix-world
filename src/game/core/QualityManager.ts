@@ -4,9 +4,9 @@ export type RuntimeQuality = "low" | "medium" | "high";
 
 type NavigatorWithDeviceMemory = Navigator & { deviceMemory?: number };
 
-const WINDOW_MS = 2_000;
-const COOLDOWN_MS = 6_000;
-const STABLE_WINDOWS_TO_RAISE = 8;
+const WINDOW_MS = 4_000;
+const COOLDOWN_MS = 10_000;
+const STABLE_WINDOWS_TO_RAISE = 3;
 
 function detectInitialQuality(): RuntimeQuality {
   const memory = (navigator as NavigatorWithDeviceMemory).deviceMemory ?? 8;
@@ -95,12 +95,12 @@ export function resolveGraphicsQuality(graphics: GameSettings["graphics"], level
       ...graphics,
       renderDistance: 1,
       terrainDetail: "low",
-      vegetationDensity: constrainedDevice ? 0.22 : 0.3,
+      vegetationDensity: constrainedDevice ? 0.18 : 0.3,
       shadowQuality: "off",
       waterQuality: "low",
-      pixelRatio: Math.min(graphics.pixelRatio, constrainedDevice ? 0.85 : 1),
+      pixelRatio: Math.min(graphics.pixelRatio, 1),
       fogQuality: "low",
-      decorativeGrass: true,
+      decorativeGrass: constrainedDevice,
       flowers: false,
       distantShadows: false,
     };
@@ -110,7 +110,7 @@ export function resolveGraphicsQuality(graphics: GameSettings["graphics"], level
       ...graphics,
       renderDistance: constrainedDevice ? 1 : 2,
       terrainDetail: "medium",
-      vegetationDensity: constrainedDevice ? 0.3 : 0.65,
+      vegetationDensity: constrainedDevice ? 0.24 : 0.65,
       shadowQuality: constrainedDevice ? "off" : "low",
       waterQuality: "medium",
       pixelRatio: Math.min(graphics.pixelRatio, constrainedDevice ? 1 : 1.25),
@@ -123,12 +123,12 @@ export function resolveGraphicsQuality(graphics: GameSettings["graphics"], level
   if (constrainedDevice) {
     return {
       ...graphics,
-      renderDistance: 1,
+      renderDistance: Math.min(2, Math.max(1, graphics.renderDistance)),
       terrainDetail: "medium",
-      vegetationDensity: Math.min(graphics.vegetationDensity, 0.45),
+      vegetationDensity: Math.min(graphics.vegetationDensity, 0.38),
       shadowQuality: "low",
       waterQuality: "medium",
-      pixelRatio: Math.min(graphics.pixelRatio, 1.1),
+      pixelRatio: Math.min(graphics.pixelRatio, 1.15),
       fogQuality: "medium",
       decorativeGrass: true,
       flowers: false,
@@ -139,10 +139,10 @@ export function resolveGraphicsQuality(graphics: GameSettings["graphics"], level
     ...graphics,
     renderDistance: Math.min(4, Math.max(3, graphics.renderDistance)),
     terrainDetail: "high",
-    vegetationDensity: Math.min(1, graphics.vegetationDensity),
+    vegetationDensity: 1,
     shadowQuality: "high",
     waterQuality: "high",
-    pixelRatio: Math.min(graphics.pixelRatio, 1.5),
+    pixelRatio: Math.min(graphics.pixelRatio, 1.75),
     fogQuality: "high",
     decorativeGrass: true,
     flowers: true,

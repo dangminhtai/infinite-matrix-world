@@ -7,7 +7,6 @@ import type { ChunkPayload } from "../types";
 import { addModification, loadWorldSave, saveWorld } from "../core/SaveManager";
 import { spawnChunkEntities, type SpawnedEntity } from "../spawn/deterministicSpawn";
 import type { MapEnemy } from "../map/types";
-import { ChestInstances, type ChestInstancesHandle } from "./ChestInstances";
 import { CollectibleInstances, type CollectibleInstancesHandle } from "./CollectibleInstances";
 import { EntityModelErrorBoundary } from "./EntityModelErrorBoundary";
 import { SlimeInstances, type SlimeInstancesHandle, type SlimeKind } from "./SlimeInstances";
@@ -104,6 +103,7 @@ export function EntitySystem({
   onMapEnemiesChange,
   onEnemyDefeated,
   onEnemyCombatChange,
+  detailedModels,
 }: {
   chunks: ChunkPayload[];
   originCx: bigint;
@@ -118,11 +118,11 @@ export function EntitySystem({
   onMapEnemiesChange: (enemies: MapEnemy[]) => void;
   onEnemyDefeated: (id: string) => void;
   onEnemyCombatChange: (enemy: EnemyCombatState) => void;
+  detailedModels: boolean;
 }) {
   const collectibleRef = useRef<THREE.InstancedMesh>(null);
   const primogemRef = useRef<CollectibleInstancesHandle>(null);
   const chestRef = useRef<THREE.InstancedMesh>(null);
-  const chestModelRef = useRef<ChestInstancesHandle>(null);
   const healingRef = useRef<THREE.InstancedMesh>(null);
   const enemyRef = useRef<THREE.InstancedMesh>(null);
   const slimeRef = useRef<SlimeInstancesHandle>(null);
@@ -137,7 +137,6 @@ export function EntitySystem({
   const spawns = useMemo(() => chunks.flatMap(spawnChunkEntities), [chunks]);
   const hasEnemySpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "enemy"), [spawns]);
   const hasCollectibleSpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "collectible"), [spawns]);
-  const hasChestSpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "chest"), [spawns]);
 
   useEffect(() => {
     saveRef.current = loadWorldSave(seedKey);
@@ -244,16 +243,10 @@ export function EntitySystem({
           collectibleCount += 1;
         }
       } else if (entity.kind === "chest") {
-        dummy.scale.setScalar(0.82);
+        dummy.scale.set(0.65, 0.42, 0.48);
         dummy.updateMatrix();
-        if (chestModelRef.current) {
-          chestModelRef.current.setMatrixAt(chestCount++, dummy.matrix);
-        } else {
-          dummy.scale.set(0.65, 0.42, 0.48);
-          dummy.updateMatrix();
-          chestRef.current?.setMatrixAt(chestFallbackCount++, dummy.matrix);
-          chestCount += 1;
-        }
+        chestRef.current?.setMatrixAt(chestFallbackCount++, dummy.matrix);
+        chestCount += 1;
       } else if (entity.kind === "healing") {
         dummy.rotation.y = now * 0.6;
         dummy.scale.set(0.24, 0.55, 0.24);
@@ -355,7 +348,6 @@ export function EntitySystem({
     updateMesh(healingRef.current, healingCount);
     updateMesh(enemyRef.current, enemyCount);
     primogemRef.current?.commit(collectibleCount - collectibleFallbackCount);
-    chestModelRef.current?.commit(chestCount - chestFallbackCount);
     slimeRef.current?.commit(slimeCounts);
   });
 
@@ -364,19 +356,14 @@ export function EntitySystem({
     <instancedMesh ref={chestRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#b57a37" roughness={0.72} /></instancedMesh>
     <instancedMesh ref={healingRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} frustumCulled={false}><cylinderGeometry args={[0.55, 0.55, 1, 8]} /><meshStandardMaterial color="#79df9a" emissive="#225f3b" emissiveIntensity={0.65} /></instancedMesh>
     <instancedMesh ref={enemyRef} args={[undefined, undefined, MAX_ACTIVE_ENTITIES]} castShadow frustumCulled={false}><dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#b84d69" roughness={0.62} /></instancedMesh>
-    {hasEnemySpawns && <EntityModelErrorBoundary>
+    {detailedModels && hasEnemySpawns && <EntityModelErrorBoundary>
       <Suspense fallback={null}>
         <SlimeInstances ref={slimeRef} maxCount={MAX_ACTIVE_ENTITIES} />
       </Suspense>
     </EntityModelErrorBoundary>}
-    {hasCollectibleSpawns && <EntityModelErrorBoundary>
+    {detailedModels && hasCollectibleSpawns && <EntityModelErrorBoundary>
       <Suspense fallback={null}>
         <CollectibleInstances ref={primogemRef} maxCount={MAX_ACTIVE_ENTITIES} />
-      </Suspense>
-    </EntityModelErrorBoundary>}
-    {hasChestSpawns && <EntityModelErrorBoundary>
-      <Suspense fallback={null}>
-        <ChestInstances ref={chestModelRef} maxCount={MAX_ACTIVE_ENTITIES} />
       </Suspense>
     </EntityModelErrorBoundary>}
   </group>;

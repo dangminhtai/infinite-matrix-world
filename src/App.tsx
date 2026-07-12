@@ -22,6 +22,7 @@ import { calculateCharacterStats } from "./game/characters/characterProgression"
 import { addProfileReward, ascendCharacter, loadAndMigratePlayerProfile, profileInventory, purchaseCharacter, savePlayerProfile, selectCharacter, upgradeCharacter, upgradeCharacterMax, type PlayerProfile, type ProfileTransaction } from "./game/characters/ProfileManager";
 import { CharacterMenu } from "./ui/CharacterMenu";
 import type { EnemyCombatState } from "./game/entities/EntitySystem";
+import { markStartup, recordRuntimeSample } from "./game/core/StartupProfiler";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -160,10 +161,21 @@ export default function App() {
   const initialWorldReady = chunks.length >= 9;
 
   useEffect(() => {
-    if (!initialWorldReady || worldRevealed) return;
+    if (chunks.length >= 9) markStartup("nearby-chunks-ready");
+  }, [chunks.length]);
+
+  useEffect(() => {
+    if (worldRevealed) markStartup("player-controllable");
+  }, [worldRevealed]);
+
+  useEffect(() => {
+    if (!initialWorldReady) {
+      setWorldRevealed(false);
+      return;
+    }
     const timer = window.setTimeout(() => setWorldRevealed(true), 280);
     return () => window.clearTimeout(timer);
-  }, [initialWorldReady, worldRevealed]);
+  }, [initialWorldReady]);
 
   useEffect(() => {
     setRuntimeQuality(qualityManager.setPreset(settings.graphics.qualityPreset));
@@ -171,20 +183,13 @@ export default function App() {
 
   useEffect(() => {
     manager.setActiveRadius(effectiveSettings.graphics.renderDistance);
-    
-    // Set visual detail based on terrain detail setting
-    const visualDetail = effectiveSettings.graphics.terrainDetail === "low" ? "low" 
-      : effectiveSettings.graphics.terrainDetail === "medium" ? "medium" 
-      : "high";
-    manager.setVisualDetail(visualDetail);
-    
     const [cxText, cyText] = lastChunk.current.split(",");
     const cx = BigInt(cxText);
     const cy = BigInt(cyText);
     manager.ensureAround(cx, cy);
     setChunks(manager.rendered.entries().map(([, chunk]) => chunk));
     setPending(manager.pendingCount);
-  }, [effectiveSettings.graphics.renderDistance, effectiveSettings.graphics.terrainDetail, manager]);
+  }, [effectiveSettings.graphics.renderDistance, manager]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -388,6 +393,7 @@ export default function App() {
     const now = performance.now();
     if (now - lastStatsAt.current >= 250) {
       lastStatsAt.current = now;
+      recordRuntimeSample(state.fps, state.frameTimeMaxMs);
       const touchDevice = window.matchMedia("(pointer: coarse)").matches;
       const targetFps = settings.graphics.fpsLimit || (touchDevice ? 45 : 60);
       const nextQuality = qualityManager.sample(state.fps, now, targetFps);
