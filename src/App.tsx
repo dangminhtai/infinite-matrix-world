@@ -14,10 +14,14 @@ import { BIOME_NAMES } from "./game/types";
 import { loadSettings, saveSettings, type GameSettings } from "./game/settings";
 import { SettingsMenu } from "./ui/SettingsMenu";
 import { QualityManager, resolveGraphicsQuality, type RuntimeQuality } from "./game/core/QualityManager";
-import { loadWorldSave, type Inventory } from "./game/core/SaveManager";
 import { InventoryMenu } from "./ui/InventoryMenu";
 import { WorldMap } from "./ui/WorldMap";
 import type { MapEnemy, MapWaypoint, TrackedTarget } from "./game/map/types";
+import { CHARACTER_CATALOG } from "./game/characters/characterCatalog";
+import { calculateCharacterStats } from "./game/characters/characterProgression";
+import { addProfileReward, ascendCharacter, loadAndMigratePlayerProfile, profileInventory, purchaseCharacter, savePlayerProfile, selectCharacter, upgradeCharacter, upgradeCharacterMax, type PlayerProfile, type ProfileTransaction } from "./game/characters/ProfileManager";
+import { CharacterMenu } from "./ui/CharacterMenu";
+import type { EnemyCombatState } from "./game/entities/EntitySystem";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -76,14 +80,17 @@ export default function App() {
     graphics: resolveGraphicsQuality(settings.graphics, runtimeQuality),
   }), [runtimeQuality, settings]);
   const seedKey = JSON.stringify(seed);
-  const [inventory, setInventory] = useState<Inventory>(() => loadWorldSave(seedKey).inventory);
+  const [profile, setProfile] = useState<PlayerProfile>(() => loadAndMigratePlayerProfile(seedKey));
+  const inventory = useMemo(() => profileInventory(profile), [profile]);
   const [showInventory, setShowInventory] = useState(false);
+  const [showCharacters, setShowCharacters] = useState(false);
   const [interactionLabel, setInteractionLabel] = useState("");
   const [notification, setNotification] = useState("");
   const [showMap, setShowMap] = useState(false);
   const [mapEnemies, setMapEnemies] = useState<MapEnemy[]>([]);
   const [trackedTarget, setTrackedTarget] = useState<TrackedTarget | null>(null);
   const [mapWaypoint, setMapWaypoint] = useState<MapWaypoint | null>(null);
+  const [enemyCombat, setEnemyCombat] = useState<EnemyCombatState>(null);
   const manager = useMemo(() => {
     const next = new ChunkManager(seed);
     next.setActiveRadius(effectiveSettings.graphics.renderDistance);
@@ -116,6 +123,7 @@ export default function App() {
     cameraZoom: 23,
     fps: 0,
     health: 100,
+    maxHealth: 100,
     stamina: 100,
     swimming: false,
     climbing: false,
@@ -182,6 +190,7 @@ export default function App() {
         setShowMap(next);
         if (next) {
           setShowInventory(false);
+          setShowCharacters(false);
           setShowSeed(false);
           setShowTeleport(false);
           setShowSettings(false);
@@ -190,11 +199,19 @@ export default function App() {
       }
       if (event.code === "KeyI" && !formTarget) {
         setShowMap(false);
+        setShowCharacters(false);
         setShowInventory((current) => !current);
+        return;
+      }
+      if (event.code === "KeyC" && !formTarget) {
+        setShowMap(false);
+        setShowInventory(false);
+        setShowCharacters((current) => !current);
         return;
       }
       if (event.key !== "Escape") return;
       if (showMap) setShowMap(false);
+      else if (showCharacters) setShowCharacters(false);
       else if (showInventory) setShowInventory(false);
       else if (showSeed) setShowSeed(false);
       else if (showTeleport) setShowTeleport(false);
@@ -202,7 +219,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showInventory, showMap, showSeed, showTeleport]);
+  }, [showCharacters, showInventory, showMap, showSeed, showTeleport]);
 
   useEffect(() => {
     const offChunk = manager.onChunk(() => {
@@ -242,7 +259,7 @@ export default function App() {
   const applySeed = useCallback((nextSeed: string[][]) => {
     const nextKey = JSON.stringify(nextSeed);
     setSeed(nextSeed);
-    setInventory(loadWorldSave(nextKey).inventory);
+    setProfile(loadAndMigratePlayerProfile(nextKey));
     setMapEnemies([]);
     setTrackedTarget(null);
     setMapWaypoint(null);
@@ -305,6 +322,37 @@ export default function App() {
     }, 2200);
   }, []);
 
+  const selectedProgress = profile.characters[profile.selectedCharacterId] ?? { level: 1, ascendedCaps: [] };
+  const playerStats = useMemo(() => calculateCharacterStats(CHARACTER_CATALOG[profile.selectedCharacterId], selectedProgress.level), [profile.selectedCharacterId, selectedProgress.level]);
+
+  const commitProfileTransaction = useCallback((transaction: ProfileTransaction, successMessage: string) => {
+    if (!transaction.ok) {
+      const messages: Record<typeof transaction.reason, string> = {
+        "already-owned": "Nhân vật này đã được sở hữu",
+        "character-locked": "Nhân vật chưa được mở khóa",
+        "insufficient-primogem": "Không đủ Nguyên Thạch",
+        "insufficient-mora": "Không đủ Mora",
+        "insufficient-slime": "Không đủ Dịch Slime",
+        "ascension-required": "Cần đột phá trước khi nâng cấp",
+        "not-at-ascension": "Chưa đến mốc đột phá",
+        "max-level": "Nhân vật đã đạt cấp 100",
+      };
+      notify(messages[transaction.reason]);
+      return;
+    }
+    savePlayerProfile(transaction.profile);
+    setProfile(transaction.profile);
+    notify(successMessage);
+  }, [notify]);
+
+  const handleReward = useCallback((itemId: "primogem" | "mora" | "slime_condensate", amount: number) => {
+    setProfile((current) => {
+      const next = addProfileReward(current, itemId, amount);
+      savePlayerProfile(next);
+      return next;
+    });
+  }, []);
+
   const updateMapEnemies = useCallback((enemies: MapEnemy[]) => {
     setMapEnemies(enemies);
     setTrackedTarget((current) => current ? enemies.find((enemy) => enemy.id === current.id) ?? current : null);
@@ -326,7 +374,7 @@ export default function App() {
     setExploration(next);
   }, [seedKey]);
 
-  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; yaw: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; stamina: number; swimming: boolean; climbing: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
+  const onStats = useCallback((state: { tileX: bigint; tileY: bigint; localX: number; localZ: number; yaw: number; cameraYaw: number; cameraZoom: number; fps: number; health: number; maxHealth: number; stamina: number; swimming: boolean; climbing: boolean; frameTimeMs: number; frameTimeMaxMs: number; drawCalls: number; triangles: number; geometries: number; textures: number }) => {
     const worldTileX = state.tileX + BigInt(Math.floor(state.localX));
     const worldTileY = state.tileY + BigInt(Math.floor(state.localZ));
     const offsetX = state.localX - Math.floor(state.localX);
@@ -356,6 +404,7 @@ export default function App() {
         cameraZoom: state.cameraZoom,
         fps: state.fps,
         health: state.health,
+        maxHealth: state.maxHealth,
         stamina: state.stamina,
         swimming: state.swimming,
         climbing: state.climbing,
@@ -410,9 +459,10 @@ export default function App() {
 
   return (
     <main>
-      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={!worldRevealed || showSettings || showSeed || showTeleport || showInventory || showMap} seedKey={seedKey} onInventoryChange={setInventory} onInteractionChange={setInteractionLabel} onNotify={notify} onMapEnemiesChange={updateMapEnemies} onEnemyDefeated={handleEnemyDefeated} />
+      <GameCanvas chunks={chunks} debug={debug} debugCollision={debugCollision} onChunkChange={ensureChunk} onStats={onStats} teleport={teleport} resetCameraToken={resetCameraToken} settings={effectiveSettings} paused={!worldRevealed || showSettings || showSeed || showTeleport || showInventory || showCharacters || showMap} seedKey={seedKey} characterId={profile.selectedCharacterId} playerStats={playerStats} onReward={handleReward} onInteractionChange={setInteractionLabel} onNotify={notify} onMapEnemiesChange={updateMapEnemies} onEnemyDefeated={handleEnemyDefeated} onEnemyCombatChange={setEnemyCombat} />
       <HUD
         health={stats.health}
+        maxHealth={stats.maxHealth}
         stamina={stats.stamina}
         swimming={stats.swimming}
         climbing={stats.climbing}
@@ -423,9 +473,11 @@ export default function App() {
         targetDistance={targetDistance}
         waypoint={mapWaypoint}
         waypointDistance={waypointDistance}
+        enemyCombat={enemyCombat}
         onClearTarget={() => setTrackedTarget(null)}
         onClearWaypoint={() => setMapWaypoint(null)}
         onInventory={() => setShowInventory(true)}
+        onCharacters={() => setShowCharacters(true)}
         onSettings={() => setShowSettings(true)}
       />
       {settings.gameplay.showMinimap && <Minimap chunks={chunks} worldTileX={stats.worldTileX} worldTileY={stats.worldTileY} offsetX={stats.offsetX} offsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} onOpenMap={() => setShowMap(true)} />}
@@ -451,6 +503,15 @@ export default function App() {
         onResetExploration={resetExploration}
       />}
       {showInventory && <InventoryMenu inventory={inventory} onClose={() => setShowInventory(false)} />}
+      {showCharacters && <CharacterMenu
+        profile={profile}
+        onPurchase={(id) => commitProfileTransaction(purchaseCharacter(profile, id), `Đã mở khóa ${CHARACTER_CATALOG[id].name}`)}
+        onSelect={(id) => commitProfileTransaction(selectCharacter(profile, id), `Đã chọn ${CHARACTER_CATALOG[id].name}`)}
+        onUpgrade={(id) => commitProfileTransaction(upgradeCharacter(profile, id), `${CHARACTER_CATALOG[id].name} đã tăng cấp`)}
+        onUpgradeMax={(id) => commitProfileTransaction(upgradeCharacterMax(profile, id), `${CHARACTER_CATALOG[id].name} đã được nâng tối đa trong giới hạn`)}
+        onAscend={(id) => commitProfileTransaction(ascendCharacter(profile, id), `${CHARACTER_CATALOG[id].name} đã đột phá`)}
+        onClose={() => setShowCharacters(false)}
+      />}
       {showMap && <WorldMap seed={seed} chunks={chunks} visitedChunks={exploration.visitedChunks} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={setMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
       {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}

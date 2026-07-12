@@ -15,8 +15,10 @@ import { GrassRing } from "./rendering/GrassRing";
 import type { GameSettings } from "./settings";
 import { DEFAULT_CAMERA_DISTANCE, DEFAULT_CAMERA_PITCH } from "./camera/cameraConfig";
 import { EntitySystem } from "./entities/EntitySystem";
-import type { Inventory } from "./core/SaveManager";
 import type { MapEnemy } from "./map/types";
+import type { CharacterId } from "./characters/characterCatalog";
+import type { CharacterStats } from "./characters/characterProgression";
+import type { EnemyCombatState } from "./entities/EntitySystem";
 import { sampleTerrainSurface, type TerrainSurface } from "./player/terrainSurface";
 import { CLIMBABLE_MAX_NORMAL_Y, CLIMBABLE_MIN_NORMAL_Y, CLIMB_IDLE_STAMINA_PER_SECOND, CLIMB_JUMP_COST, CLIMB_MOVE_STAMINA_PER_SECOND, CLIMB_REATTACH_DELAY, CLIMB_RELEASE_NORMAL_Y, CLIMB_SPEED, CLIMB_VERTICAL_SPEED, MANTLE_DURATION, WALKABLE_NORMAL_Y } from "./player/climbingConfig";
 
@@ -67,6 +69,7 @@ export type GameState = {
   climbNormalY: number;
   climbNormalZ: number;
   health: number;
+  maxHealth: number;
   stamina: number;
   cameraYaw: number;
   cameraZoom: number;
@@ -105,11 +108,14 @@ function Scene({
   paused,
   debugCollision,
   seedKey,
-  onInventoryChange,
+  characterId,
+  playerStats,
+  onReward,
   onInteractionChange,
   onNotify,
   onMapEnemiesChange,
   onEnemyDefeated,
+  onEnemyCombatChange,
 }: {
   chunks: ChunkPayload[];
   debug: boolean;
@@ -122,11 +128,14 @@ function Scene({
   paused: boolean;
   debugCollision: boolean;
   seedKey: string;
-  onInventoryChange: (inventory: Inventory) => void;
+  characterId: CharacterId;
+  playerStats: CharacterStats;
+  onReward: (itemId: "primogem" | "mora" | "slime_condensate", amount: number) => void;
   onInteractionChange: (label: string) => void;
   onNotify: (message: string) => void;
   onMapEnemiesChange: (enemies: MapEnemy[]) => void;
   onEnemyDefeated: (id: string) => void;
+  onEnemyCombatChange: (enemy: EnemyCombatState) => void;
 }) {
   const chunkMap = useMemo(() => new Map(chunks.map((chunk) => [`${chunk.cx},${chunk.cy}`, chunk])), [chunks]);
   const game = useRef<GameState>({
@@ -145,7 +154,8 @@ function Scene({
     climbNormalX: 0,
     climbNormalY: 1,
     climbNormalZ: 0,
-    health: 100,
+    health: playerStats.maxHP,
+    maxHealth: playerStats.maxHP,
     stamina: 100,
     cameraYaw: Math.PI * 0.75,
     cameraZoom: 18,
@@ -178,6 +188,13 @@ function Scene({
   useEffect(() => {
     cameraAngles.current.distance = settings.gameplay.cameraDistance;
   }, [settings.gameplay.cameraDistance]);
+
+  useEffect(() => {
+    const previousMax = Math.max(1, game.current.maxHealth);
+    const ratio = game.current.health / previousMax;
+    game.current.maxHealth = playerStats.maxHP;
+    game.current.health = Math.max(1, Math.min(playerStats.maxHP, Math.round(ratio * playerStats.maxHP)));
+  }, [characterId, playerStats.maxHP]);
 
   useEffect(() => {
     if (!teleport) return;
@@ -514,7 +531,7 @@ function Scene({
         pendingTeleport.current = respawn;
         setRenderOrigin({ cx: safeCx, cy: safeCy });
       }
-      state.health = 100;
+      state.health = state.maxHealth;
       state.stamina = 100;
       state.swimming = false;
       onChunkChange(safeCx, safeCy, { x: 0, y: 0 });
@@ -568,13 +585,15 @@ function Scene({
         player={game}
         actions={inputRef}
         seedKey={seedKey}
-        onInventoryChange={onInventoryChange}
+        playerStats={playerStats}
+        onReward={onReward}
         onInteractionChange={onInteractionChange}
         onNotify={onNotify}
         onMapEnemiesChange={onMapEnemiesChange}
         onEnemyDefeated={onEnemyDefeated}
+        onEnemyCombatChange={onEnemyCombatChange}
       />
-      <Player state={game} debugCollision={debugCollision} />
+      <Player state={game} debugCollision={debugCollision} characterId={characterId} />
       <ThirdPersonCamera
         player={game}
         angles={cameraAngles}
@@ -598,11 +617,14 @@ export const GameCanvas = memo(function GameCanvas(props: {
   paused: boolean;
   debugCollision: boolean;
   seedKey: string;
-  onInventoryChange: (inventory: Inventory) => void;
+  characterId: CharacterId;
+  playerStats: CharacterStats;
+  onReward: (itemId: "primogem" | "mora" | "slime_condensate", amount: number) => void;
   onInteractionChange: (label: string) => void;
   onNotify: (message: string) => void;
   onMapEnemiesChange: (enemies: MapEnemy[]) => void;
   onEnemyDefeated: (id: string) => void;
+  onEnemyCombatChange: (enemy: EnemyCombatState) => void;
 }) {
   const inputRef = useRef<PlayerInputState>({ pressed: new Set(), joystick: { x: 0, y: 0 }, jumpQueued: false, mobileRun: false, interactQueued: false, attackQueued: false, skillQueued: false });
   return (
@@ -627,11 +649,14 @@ export const GameCanvas = memo(function GameCanvas(props: {
           paused={props.paused}
           debugCollision={props.debugCollision}
           seedKey={props.seedKey}
-          onInventoryChange={props.onInventoryChange}
+          characterId={props.characterId}
+          playerStats={props.playerStats}
+          onReward={props.onReward}
           onInteractionChange={props.onInteractionChange}
           onNotify={props.onNotify}
           onMapEnemiesChange={props.onMapEnemiesChange}
           onEnemyDefeated={props.onEnemyDefeated}
+          onEnemyCombatChange={props.onEnemyCombatChange}
         />
       </Canvas>
       <VirtualJoystick

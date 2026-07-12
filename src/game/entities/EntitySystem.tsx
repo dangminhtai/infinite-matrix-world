@@ -4,21 +4,34 @@ import * as THREE from "three";
 import { CHUNK_SIZE } from "../constants";
 import type { GameState, PlayerInputState } from "../GameCanvas";
 import type { ChunkPayload } from "../types";
-import { addInventoryItem, addModification, loadWorldSave, saveWorld, type Inventory } from "../core/SaveManager";
+import { addModification, loadWorldSave, saveWorld } from "../core/SaveManager";
 import { spawnChunkEntities, type SpawnedEntity } from "../spawn/deterministicSpawn";
 import type { MapEnemy } from "../map/types";
 import { ChestInstances, type ChestInstancesHandle } from "./ChestInstances";
 import { CollectibleInstances, type CollectibleInstancesHandle } from "./CollectibleInstances";
 import { EntityModelErrorBoundary } from "./EntityModelErrorBoundary";
 import { SlimeInstances, type SlimeInstancesHandle, type SlimeKind } from "./SlimeInstances";
+import type { CharacterStats } from "../characters/characterProgression";
 
 type RuntimeEntity = SpawnedEntity & {
   hp: number;
+  maxHP: number;
+  level: number;
+  atk: number;
+  def: number;
   moveX: number;
   moveZ: number;
   lastAttackAt: number;
   lastUsedAt: number;
 };
+
+export type EnemyCombatState = {
+  id: string;
+  name: string;
+  level: number;
+  hp: number;
+  maxHP: number;
+} | null;
 
 const MAX_ACTIVE_ENTITIES = 512;
 
@@ -39,6 +52,44 @@ function slimeKind(entity: RuntimeEntity): SlimeKind {
   return Math.min(2, Math.floor((entity.phase / (Math.PI * 2)) * 3)) as SlimeKind;
 }
 
+const SLIME_NAMES = ["Slime Băng", "Slime Hỏa", "Slime Lôi"] as const;
+const SLIME_BASE_STATS = [
+  { hp: 150, atk: 22, def: 28 },
+  { hp: 125, atk: 30, def: 18 },
+  { hp: 135, atk: 26, def: 22 },
+] as const;
+
+function slimeLevel(entity: SpawnedEntity): number {
+  const cx = floorDiv(entity.worldX, BigInt(CHUNK_SIZE));
+  const cy = floorDiv(entity.worldY, BigInt(CHUNK_SIZE));
+  const distance = (cx < 0n ? -cx : cx) > (cy < 0n ? -cy : cy) ? (cx < 0n ? -cx : cx) : (cy < 0n ? -cy : cy);
+  return distance >= 1188n ? 100 : Math.min(100, 1 + Number(distance / 12n));
+}
+
+function createRuntimeEntity(spawn: SpawnedEntity): RuntimeEntity {
+  if (spawn.kind !== "enemy") return { ...spawn, hp: 1, maxHP: 1, level: 1, atk: 0, def: 0, moveX: 0, moveZ: 0, lastAttackAt: 0, lastUsedAt: 0 };
+  const kind = Math.min(2, Math.floor((spawn.phase / (Math.PI * 2)) * 3)) as SlimeKind;
+  const level = slimeLevel(spawn);
+  const base = SLIME_BASE_STATS[kind];
+  const maxHP = Math.round(base.hp * (1 + 0.055 * (level - 1)));
+  return {
+    ...spawn,
+    hp: maxHP,
+    maxHP,
+    level,
+    atk: Math.round(base.atk * (1 + 0.035 * (level - 1))),
+    def: Math.round(base.def * (1 + 0.03 * (level - 1))),
+    moveX: 0,
+    moveZ: 0,
+    lastAttackAt: 0,
+    lastUsedAt: 0,
+  };
+}
+
+function reducedDamage(attack: number, defense: number, multiplier = 1): number {
+  return Math.max(1, Math.round(attack * multiplier * 100 / (100 + Math.max(0, defense))));
+}
+
 export function EntitySystem({
   chunks,
   originCx,
@@ -46,11 +97,13 @@ export function EntitySystem({
   player,
   actions,
   seedKey,
-  onInventoryChange,
+  playerStats,
+  onReward,
   onInteractionChange,
   onNotify,
   onMapEnemiesChange,
   onEnemyDefeated,
+  onEnemyCombatChange,
 }: {
   chunks: ChunkPayload[];
   originCx: bigint;
@@ -58,11 +111,13 @@ export function EntitySystem({
   player: MutableRefObject<GameState>;
   actions: MutableRefObject<PlayerInputState>;
   seedKey: string;
-  onInventoryChange: (inventory: Inventory) => void;
+  playerStats: CharacterStats;
+  onReward: (itemId: "primogem" | "mora" | "slime_condensate", amount: number) => void;
   onInteractionChange: (label: string) => void;
   onNotify: (message: string) => void;
   onMapEnemiesChange: (enemies: MapEnemy[]) => void;
   onEnemyDefeated: (id: string) => void;
+  onEnemyCombatChange: (enemy: EnemyCombatState) => void;
 }) {
   const collectibleRef = useRef<THREE.InstancedMesh>(null);
   const primogemRef = useRef<CollectibleInstancesHandle>(null);
@@ -78,6 +133,7 @@ export function EntitySystem({
   const interactionLabelRef = useRef("");
   const skillReadyAt = useRef(0);
   const lastMapUpdateAt = useRef(0);
+  const lastCombatUpdateAt = useRef(0);
   const spawns = useMemo(() => chunks.flatMap(spawnChunkEntities), [chunks]);
   const hasEnemySpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "enemy"), [spawns]);
   const hasCollectibleSpawns = useMemo(() => spawns.some((spawn) => spawn.kind === "collectible"), [spawns]);
@@ -87,8 +143,7 @@ export function EntitySystem({
     saveRef.current = loadWorldSave(seedKey);
     entitiesRef.current.clear();
     activeIds.current.clear();
-    onInventoryChange({ ...saveRef.current.inventory });
-  }, [onInventoryChange, seedKey]);
+  }, [seedKey]);
 
   useEffect(() => {
     const save = saveRef.current;
@@ -102,7 +157,7 @@ export function EntitySystem({
       if (spawn.kind === "enemy" && defeated.has(spawn.id)) continue;
       nextIds.add(spawn.id);
       if (!entitiesRef.current.has(spawn.id)) {
-        entitiesRef.current.set(spawn.id, { ...spawn, hp: spawn.kind === "enemy" ? 100 : 1, moveX: 0, moveZ: 0, lastAttackAt: 0, lastUsedAt: 0 });
+        entitiesRef.current.set(spawn.id, createRuntimeEntity(spawn));
       }
     }
     for (const id of entitiesRef.current.keys()) if (!nextIds.has(id)) entitiesRef.current.delete(id);
@@ -161,7 +216,7 @@ export function EntitySystem({
         distance = Math.hypot(localX - state.localX, localZ - state.localZ);
         if (distance < 1.1 && now - entity.lastAttackAt > 1.2) {
           entity.lastAttackAt = now;
-          state.health = Math.max(0, state.health - 8);
+          state.health = Math.max(0, state.health - reducedDamage(entity.atk, playerStats.def));
         }
       }
 
@@ -230,6 +285,13 @@ export function EntitySystem({
       lastMapUpdateAt.current = now;
       onMapEnemiesChange(mapEnemies);
     }
+    if (now - lastCombatUpdateAt.current >= 0.15) {
+      lastCombatUpdateAt.current = now;
+      if (nearestEnemy && nearestEnemyDistance <= 8) {
+        const kind = slimeKind(nearestEnemy);
+        onEnemyCombatChange({ id: nearestEnemy.id, name: SLIME_NAMES[kind], level: nearestEnemy.level, hp: Math.max(0, nearestEnemy.hp), maxHP: nearestEnemy.maxHP });
+      } else onEnemyCombatChange(null);
+    }
 
     const nextLabel = nearestInteraction ? entityLabel(nearestInteraction) : "";
     if (nextLabel !== interactionLabelRef.current) {
@@ -241,21 +303,20 @@ export function EntitySystem({
     if (actions.current.interactQueued && nearestInteraction) {
       if (nearestInteraction.kind === "collectible") {
         addModification(save.collected, nearestInteraction.id);
-        addInventoryItem(save, "primogem", 1);
+        onReward("primogem", 1);
         onNotify("Đã nhận 1 Nguyên Thạch");
         activeIds.current.delete(nearestInteraction.id);
       } else if (nearestInteraction.kind === "chest") {
         addModification(save.openedChests, nearestInteraction.id);
-        addInventoryItem(save, "mora", 500);
+        onReward("mora", 500);
         onNotify("Rương: +500 Mora");
         activeIds.current.delete(nearestInteraction.id);
       } else if (nearestInteraction.kind === "healing" && now - nearestInteraction.lastUsedAt > 3) {
         nearestInteraction.lastUsedAt = now;
-        state.health = 100;
+        state.health = state.maxHealth;
         onNotify("Đã hồi phục hoàn toàn");
       }
       saveWorld(seedKey, save);
-      onInventoryChange({ ...save.inventory });
     }
     actions.current.interactQueued = false;
 
@@ -263,14 +324,13 @@ export function EntitySystem({
       entity.hp -= damage;
       if (entity.hp > 0) return;
       addModification(save.defeatedEnemies, entity.id);
-      addInventoryItem(save, "slime_condensate", 1);
+      onReward("slime_condensate", 1);
       activeIds.current.delete(entity.id);
       onEnemyDefeated(entity.id);
       saveWorld(seedKey, save);
-      onInventoryChange({ ...save.inventory });
       onNotify("Đã nhận 1 Dịch Slime");
     };
-    if (actions.current.attackQueued && nearestEnemy && nearestEnemyDistance <= 2.2) damageEnemy(nearestEnemy, 34);
+    if (actions.current.attackQueued && nearestEnemy && nearestEnemyDistance <= 2.2) damageEnemy(nearestEnemy, reducedDamage(playerStats.atk, nearestEnemy.def, 0.75));
     actions.current.attackQueued = false;
     if (actions.current.skillQueued && now >= skillReadyAt.current) {
       skillReadyAt.current = now + 5;
@@ -279,7 +339,7 @@ export function EntitySystem({
         if (!entity || entity.kind !== "enemy") continue;
         const x = Number(entity.worldX - originX) + entity.offsetX + entity.moveX;
         const z = Number(entity.worldY - originY) + entity.offsetZ + entity.moveZ;
-        if (Math.hypot(x - state.localX, z - state.localZ) <= 3.5) damageEnemy(entity, 52);
+        if (Math.hypot(x - state.localX, z - state.localZ) <= 3.5) damageEnemy(entity, reducedDamage(playerStats.atk, entity.def, 1.35));
       }
       onNotify("Kỹ năng đã kích hoạt");
     }

@@ -5,8 +5,9 @@ import type { GameState } from "../GameCanvas";
 import { PlayerGltfModel } from "./PlayerGltfModel";
 import { PlayerModelErrorBoundary } from "./PlayerModelErrorBoundary";
 import { PlayerProceduralModel } from "./PlayerProceduralModel";
+import type { CharacterId } from "../characters/characterCatalog";
 
-export function Player({ state, debugCollision }: { state: MutableRefObject<GameState>; debugCollision: boolean }) {
+export function Player({ state, debugCollision, characterId }: { state: MutableRefObject<GameState>; debugCollision: boolean; characterId: CharacterId }) {
   const group = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Mesh>(null);
   const rightLeg = useRef<THREE.Mesh>(null);
@@ -36,7 +37,7 @@ export function Player({ state, debugCollision }: { state: MutableRefObject<Game
     <group ref={group} position={[state.current.localX, state.current.height, state.current.localZ]} rotation-y={state.current.yaw}>
       <PlayerModelErrorBoundary fallback={<PlayerProceduralModel leftLeg={leftLeg} rightLeg={rightLeg} leftArm={leftArm} rightArm={rightArm} />}>
         <Suspense fallback={<PlayerProceduralModel leftLeg={leftLeg} rightLeg={rightLeg} leftArm={leftArm} rightArm={rightArm} />}>
-          <PlayerGltfModel state={state} />
+          <PlayerGltfModel state={state} characterId={characterId} />
         </Suspense>
       </PlayerModelErrorBoundary>
       {debugCollision && <mesh rotation-x={-Math.PI / 2} position={[0, 0.035, 0]}>

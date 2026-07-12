@@ -8,6 +8,9 @@ import { generateMapTile } from "../map/mapTile";
 import { calculateMapMinScale, MAP_ZOOM_MAX_SCALE, zoomLevelToScale } from "../map/mapZoom";
 import { sampleTerrainSurface } from "../player/terrainSurface";
 import { migrateInventory } from "../core/SaveManager";
+import { CHARACTER_CATALOG } from "../characters/characterCatalog";
+import { ASCENSION_CAPS, ascensionCostAt, calculateCharacterStats, moraCostForNextLevel, totalMoraCost } from "../characters/characterProgression";
+import { ascendCharacter, createDefaultProfile, migrateWorldWallet, purchaseCharacter, sanitizeProfile, upgradeCharacter, upgradeCharacterMax } from "../characters/ProfileManager";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -125,6 +128,53 @@ export function selfTest(): string[] {
   const migratedTwice = migrateInventory(migrated);
   assert(migratedTwice.primogem === 2 && migratedTwice.mora === 325 && migratedTwice.slime_condensate === 4, "inventory migration idempotent");
   passed.push("Inventory migration");
+
+  assert(moraCostForNextLevel(1) === 600, "level 1 mora cost");
+  assert(moraCostForNextLevel(99) === 784_600, "level 99 mora cost");
+  assert(moraCostForNextLevel(100) === 0, "max level mora cost");
+  assert(totalMoraCost(1, 100) === 26_322_000, "total mora cost");
+  assert(ASCENSION_CAPS.every((cap) => (ascensionCostAt(cap) ?? 0) > 0), "all ascension caps have costs");
+  const levelOneStats = calculateCharacterStats(CHARACTER_CATALOG.aether, 1);
+  const levelHundredStats = calculateCharacterStats(CHARACTER_CATALOG.aether, 100);
+  assert(levelOneStats.maxHP === 1000 && levelOneStats.atk === 55 && levelOneStats.def === 55, "level 1 character stats");
+  assert(levelHundredStats.maxHP > levelOneStats.maxHP && levelHundredStats.atk > levelOneStats.atk && levelHundredStats.def > levelOneStats.def, "level 100 character stats");
+
+  const repairedProfile = sanitizeProfile({ characters: {}, selectedCharacterId: "nahida", wallet: { primogem: -10, mora: 20.9, slimeCondensate: 3 } });
+  assert(repairedProfile.characters.aether?.level === 1 && repairedProfile.selectedCharacterId === "aether", "profile always owns Aether");
+  assert(repairedProfile.wallet.primogem === 0 && repairedProfile.wallet.mora === 20, "profile wallet sanitization");
+  const walletMigration = migrateWorldWallet(createDefaultProfile(), "seed-a", { primogem: 4, mora: 500, slime_condensate: 2, custom_item: 7 });
+  assert(walletMigration.profile.wallet.primogem === 4 && walletMigration.profile.wallet.mora === 500 && walletMigration.profile.wallet.slimeCondensate === 2, "world wallet moves to profile");
+  assert(walletMigration.inventory.custom_item === 7 && !("mora" in walletMigration.inventory), "world wallet migration preserves other items");
+  const walletMigrationTwice = migrateWorldWallet(walletMigration.profile, "seed-a", { primogem: 4, mora: 500, slime_condensate: 2 });
+  assert(walletMigrationTwice.profile.wallet.primogem === 4 && walletMigrationTwice.profile.wallet.mora === 500, "world wallet migration idempotent");
+
+  const purchaseProfile = createDefaultProfile();
+  purchaseProfile.wallet.primogem = 600;
+  const purchasedNahida = purchaseCharacter(purchaseProfile, "nahida");
+  assert(purchasedNahida.ok && purchasedNahida.profile.wallet.primogem === 0 && purchasedNahida.profile.characters.nahida?.level === 1, "character purchase transaction");
+  const duplicatePurchase = purchaseCharacter(purchasedNahida.profile, "nahida");
+  assert(!duplicatePurchase.ok && duplicatePurchase.reason === "already-owned", "duplicate character purchase blocked");
+
+  const ascensionProfile = createDefaultProfile();
+  ascensionProfile.characters.aether = { level: 20, ascendedCaps: [] };
+  ascensionProfile.wallet.mora = 10_000_000;
+  ascensionProfile.wallet.slimeCondensate = 2;
+  const blockedUpgrade = upgradeCharacter(ascensionProfile, "aether");
+  assert(!blockedUpgrade.ok && blockedUpgrade.reason === "ascension-required", "level 20 upgrade requires ascension");
+  const insufficientSlime = ascendCharacter(ascensionProfile, "aether");
+  assert(!insufficientSlime.ok && insufficientSlime.reason === "insufficient-slime", "ascension checks slime material");
+  ascensionProfile.wallet.slimeCondensate = 3;
+  const ascendedAether = ascendCharacter(ascensionProfile, "aether");
+  assert(ascendedAether.ok && ascendedAether.profile.wallet.slimeCondensate === 0, "ascension spends exact slime material");
+  const levelTwentyOne = upgradeCharacter(ascendedAether.profile, "aether");
+  assert(levelTwentyOne.ok && levelTwentyOne.profile.characters.aether?.level === 21, "ascension unlocks next level range");
+  const maxWithinCap = upgradeCharacterMax(levelTwentyOne.profile, "aether");
+  assert(maxWithinCap.ok && maxWithinCap.profile.characters.aether?.level === 30, "max upgrade stops at next ascension cap");
+  const blockedAtNextCap = upgradeCharacterMax(maxWithinCap.profile, "aether");
+  assert(!blockedAtNextCap.ok && blockedAtNextCap.reason === "ascension-required", "max upgrade never auto ascends");
+  const repeatedAscension = ascendCharacter(ascendedAether.profile, "aether");
+  assert(!repeatedAscension.ok && repeatedAscension.reason === "not-at-ascension", "ascension cannot repeat at same cap");
+  passed.push("Character progression");
 
   return passed;
 }
