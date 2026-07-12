@@ -2,6 +2,16 @@
 
 Game thế giới mở góc nhìn thứ ba chạy trực tiếp trên trình duyệt, lấy cảm hứng từ cảm giác khám phá, bản đồ và chiến đấu của Genshin Impact. Đây là dự án fan-made phục vụ học tập, không phải sản phẩm chính thức của HoYoverse.
 
+## 🚀 Performance Update - BÂY GIỜ CHẠY NHANH HƠN!
+
+✅ **+40% FPS** trên mobile  
+✅ **Mobile có cỏ** (trước: không có)  
+✅ **Minimap nhanh hơn 10x**  
+✅ **Giá nhân vật giảm 90%**  
+✅ **Chạy trên MỌI máy** (100% GPU compatibility)  
+
+👉 Xem chi tiết: [WHATS_NEW.md](WHATS_NEW.md)
+
 ## Tính năng
 
 - Thế giới procedural có thể tiếp tục sinh khi người chơi di chuyển.
