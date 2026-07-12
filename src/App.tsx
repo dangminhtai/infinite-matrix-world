@@ -160,13 +160,10 @@ export default function App() {
   const initialWorldReady = chunks.length >= 9;
 
   useEffect(() => {
-    if (!initialWorldReady) {
-      setWorldRevealed(false);
-      return;
-    }
+    if (!initialWorldReady || worldRevealed) return;
     const timer = window.setTimeout(() => setWorldRevealed(true), 280);
     return () => window.clearTimeout(timer);
-  }, [initialWorldReady]);
+  }, [initialWorldReady, worldRevealed]);
 
   useEffect(() => {
     setRuntimeQuality(qualityManager.setPreset(settings.graphics.qualityPreset));

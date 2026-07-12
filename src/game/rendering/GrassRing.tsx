@@ -6,14 +6,16 @@ import type { GameState } from "../GameCanvas";
 import { BIOME_IDS, type ChunkPayload } from "../types";
 
 function grassAreaSize(density: number): number {
-  if (density <= 0.28) return 22;
-  if (density <= 0.45) return 28;
+  if (density <= 0.2) return 14;
+  if (density <= 0.3) return 16;
+  if (density <= 0.45) return 22;
   return 36;
 }
 
 function grassDetail(density: number): number {
-  if (density <= 0.28) return 52;
-  if (density <= 0.45) return 76;
+  if (density <= 0.2) return 28;
+  if (density <= 0.3) return 36;
+  if (density <= 0.45) return 52;
   if (density <= 0.7) return 112;
   if (density <= 0.9) return 152;
   return 192;
@@ -173,6 +175,7 @@ export function GrassRing({ chunks, originCx, originCy, player, density }: { chu
     vertexShader,
     fragmentShader,
     side: THREE.DoubleSide,
+    precision: "mediump",
     uniforms: {
       uTime: { value: 0 },
       uAreaSize: { value: areaSize },
