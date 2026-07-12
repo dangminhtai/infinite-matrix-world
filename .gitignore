@@ -17,3 +17,5 @@ pnpm-debug.log*
 
 .DS_Store
 Thumbs.db
+src/models/dusty_path_in_the_fields.glb
+src/models/hero_mountain.glb
