@@ -1453,28 +1453,28 @@ src/
 ## Công việc
 
 - [ ] `floorDiv`/`floorMod`.
-- [ ] Mapping tile/chunk/sector/region.
+- [x] Mapping chunk/sector/region ở cấp chunk hiện tại.
 - [ ] Key parser/serializer.
 - [ ] Bitset 64/256.
 - [ ] Hex encode/decode.
-- [ ] Runtime schema.
-- [ ] Save V2.
-- [ ] Migration.
-- [ ] Compaction cơ bản.
+- [x] Runtime schema tối thiểu cho chunk/sector/region.
+- [x] Save V2 tối thiểu, tách theo seed.
+- [x] Migration từ `visitedChunks`, bỏ qua key lỗi.
+- [x] Compaction cơ bản: giới hạn chunk/sector/region và hạ sector cũ về region.
 - [ ] Save byte estimator.
 
 ## Self-test
 
-- [ ] Floor division âm.
+- [x] Floor division âm.
 - [ ] Floor mod không âm.
 - [ ] Bit index bốn góc.
-- [ ] Chunk `-1` → sector `-1`, local `7`.
-- [ ] Chunk `-8` → sector `-1`, local `0`.
-- [ ] Chunk `-9` → sector `-2`, local `7`.
+- [x] Chunk `-1` → sector `-1`, local `7`.
+- [x] Chunk `-8` → sector `-1`, local `0`.
+- [x] Chunk `-9` → sector `-2`, local `7`.
 - [ ] Sector `-1` → region `-1`, local `15`.
 - [ ] Hex64/Hex256 roundtrip.
 - [ ] Migration idempotent.
-- [ ] Entry lỗi không crash.
+- [x] Entry legacy và `lastPosition` lỗi không crash.
 - [ ] Save sai version bị từ chối rõ.
 
 ## Definition of Done
@@ -1491,11 +1491,11 @@ src/
 ## Công việc
 
 - [ ] Theo dõi fine cell player.
-- [ ] Reveal khi cell đổi.
+- [x] Reveal bán kính chunk khi player sang chunk mới.
 - [ ] High-ground bonus tùy chọn.
-- [ ] Minimap dùng chunk đã tải.
-- [ ] Fog mask.
-- [ ] Lọc marker.
+- [x] Minimap dùng chunk đã tải.
+- [x] Fog nhị phân che chunk chưa khám phá.
+- [x] Lọc marker quái ngoài vùng đã khám phá.
 - [ ] Debounce save.
 - [ ] Metrics save/reveal.
 
@@ -1525,13 +1525,13 @@ không request worker lúc startup
 
 # 28. Phase M2 — World map UI
 
-- [ ] Map camera BigInt + local offset.
+- [x] Map camera BigInt + local offset.
 - [ ] Tile key theo zoom.
 - [ ] Unknown/coarse/partial/detailed.
 - [ ] Fog layer tách terrain.
-- [ ] Player/waypoint.
-- [ ] Không hiện entity chưa biết.
-- [ ] Pan/zoom không overflow.
+- [x] Player/waypoint.
+- [x] Không hiện quái chưa biết.
+- [x] Pan/zoom giữ tọa độ toàn cục ở `BigInt`.
 
 Bản đầu có thể chưa dùng worker; dùng placeholder và dữ liệu cache để kiểm chứng logic.
 
@@ -1539,16 +1539,16 @@ Bản đầu có thể chưa dùng worker; dùng placeholder và dữ liệu cac
 
 # 29. Phase M3 — Worker và cache
 
-- [ ] Worker riêng.
-- [ ] Request ID.
+- [x] Worker riêng.
+- [x] Request ID.
 - [ ] Viewport epoch.
-- [ ] Stale filtering.
-- [ ] Pending tracking.
-- [ ] Priority queue.
-- [ ] Mobile concurrency = 1.
-- [ ] Cache theo byte.
-- [ ] Dispose resource.
-- [ ] Không chạy khi map đóng.
+- [x] Stale filtering theo tập tile viewport đang cần.
+- [x] Pending tracking.
+- [x] Priority queue theo khoảng cách tới tâm map.
+- [x] Mobile concurrency = 1.
+- [x] Cache theo byte: mobile 24 MiB, desktop 64 MiB.
+- [x] Dispose worker và hàng đợi khi đóng map.
+- [x] Không chạy khi map đóng.
 
 Metrics:
 
@@ -1571,10 +1571,10 @@ integration avg/max
 - [ ] Marker unknown bị clamp.
 - [ ] Giới hạn 100.
 - [ ] Pin region có waypoint.
-- [ ] Safe teleport.
+- [x] Safe teleport chỉ cho waypoint nằm trong chunk đã khám phá.
 - [ ] Developer teleport policy.
-- [ ] Không mở đường teleport.
-- [ ] Save/load.
+- [x] Không mở đường teleport; chỉ điểm đáp được khám phá theo vòng cập nhật player.
+- [x] Save/load waypoint hiện tại.
 
 ---
 

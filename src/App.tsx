@@ -23,7 +23,7 @@ import { addProfileReward, ascendCharacter, loadAndMigratePlayerProfile, profile
 import { CharacterMenu } from "./ui/CharacterMenu";
 import type { EnemyCombatState } from "./game/entities/EntitySystem";
 import { markStartup, recordRuntimeSample } from "./game/core/StartupProfiler";
-import { clearMapExploration, discoverChunk, loadMapExploration, saveMapExploration, type MapExplorationSave } from "./game/exploration/mapExploration";
+import { clearMapExploration, discoverChunkRadius, loadMapExploration, saveMapExploration, type MapExplorationSave } from "./game/exploration/mapExploration";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -436,7 +436,7 @@ export default function App() {
     const previous = lastTile.current;
     lastTile.current = { x: worldTileX, y: worldTileY, offsetX, offsetY };
     setMapExploration((current) => {
-      const next = discoverChunk(current, chunkX, chunkY, worldTileX, worldTileY);
+      const next = discoverChunkRadius(current, chunkX, chunkY, 1, worldTileX, worldTileY);
       if (next !== current) saveMapExploration(seedKey, next);
       return next;
     });

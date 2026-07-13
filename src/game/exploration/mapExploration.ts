@@ -1,13 +1,16 @@
 const SECTOR_CHUNKS = 8n;
 const REGION_SECTORS = 16n;
 const MAX_DETAILED_CHUNKS = 4_096;
+const MAX_DETAILED_SECTORS = 8_192;
 const MAX_REGIONS = 16_384;
 
 export type MapExplorationSave = {
   version: 2;
   detailedChunks: string[];
   discoveredSectors: Record<string, string>;
+  sectorOrder: string[];
   discoveredRegions: string[];
+  compactedRegions: string[];
   lastPosition: { worldX: string; worldY: string };
 };
 
@@ -18,7 +21,7 @@ export function floorDivBigInt(value: bigint, divisor: bigint): bigint {
 }
 
 export function emptyMapExploration(): MapExplorationSave {
-  return { version: 2, detailedChunks: [], discoveredSectors: {}, discoveredRegions: [], lastPosition: { worldX: "0", worldY: "0" } };
+  return { version: 2, detailedChunks: [], discoveredSectors: {}, sectorOrder: [], discoveredRegions: [], compactedRegions: [], lastPosition: { worldX: "0", worldY: "0" } };
 }
 
 function chunkKey(cx: bigint, cy: bigint): string {
@@ -48,6 +51,7 @@ function parseMask(value: string | undefined): bigint {
 
 export function isChunkDiscovered(save: MapExplorationSave, cx: bigint, cy: bigint): boolean {
   const sector = sectorInfo(cx, cy);
+  if (save.compactedRegions.includes(regionKey(sector.sx, sector.sy))) return true;
   return (parseMask(save.discoveredSectors[sector.key]) & (1n << sector.bit)) !== 0n;
 }
 
@@ -63,13 +67,51 @@ export function discoverChunk(save: MapExplorationSave, cx: bigint, cy: bigint, 
   if (detailedChunks.length > MAX_DETAILED_CHUNKS) detailedChunks.splice(0, detailedChunks.length - MAX_DETAILED_CHUNKS);
   const region = regionKey(sector.sx, sector.sy);
   const discoveredRegions = save.discoveredRegions.includes(region) ? save.discoveredRegions : [...save.discoveredRegions, region].slice(-MAX_REGIONS);
+  const discoveredSectors = { ...save.discoveredSectors, [sector.key]: (mask | bitMask).toString(16) };
+  const sectorOrder = save.sectorOrder.filter((entry) => entry !== sector.key);
+  sectorOrder.push(sector.key);
+  const compactedRegions = [...save.compactedRegions];
+  while (sectorOrder.length > MAX_DETAILED_SECTORS) {
+    const evicted = sectorOrder.shift();
+    if (!evicted) break;
+    delete discoveredSectors[evicted];
+    const [sx, sy] = evicted.split(",").map(BigInt);
+    const evictedRegion = regionKey(sx, sy);
+    if (!compactedRegions.includes(evictedRegion)) compactedRegions.push(evictedRegion);
+  }
+  if (compactedRegions.length > MAX_REGIONS) compactedRegions.splice(0, compactedRegions.length - MAX_REGIONS);
   return {
     version: 2,
     detailedChunks,
-    discoveredSectors: { ...save.discoveredSectors, [sector.key]: (mask | bitMask).toString(16) },
+    discoveredSectors,
+    sectorOrder,
     discoveredRegions,
+    compactedRegions,
     lastPosition: { worldX: worldX.toString(), worldY: worldY.toString() },
   };
+}
+
+export function discoverChunkRadius(save: MapExplorationSave, cx: bigint, cy: bigint, radius = 1, worldX = cx * 16n, worldY = cy * 16n): MapExplorationSave {
+  let fullyDiscovered = false;
+  try {
+    fullyDiscovered = floorDivBigInt(BigInt(save.lastPosition.worldX), 16n) === cx && floorDivBigInt(BigInt(save.lastPosition.worldY), 16n) === cy;
+  } catch {
+    // A damaged save must trigger a fresh reveal instead of stopping the game loop.
+  }
+  for (let dy = -radius; dy <= radius && fullyDiscovered; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      if (!isChunkDiscovered(save, cx + BigInt(dx), cy + BigInt(dy))) {
+        fullyDiscovered = false;
+        break;
+      }
+    }
+  }
+  if (fullyDiscovered) return save;
+  let next = save;
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) next = discoverChunk(next, cx + BigInt(dx), cy + BigInt(dy), worldX, worldY);
+  }
+  return next;
 }
 
 export function migrateVisitedChunks(visitedChunks: readonly string[]): MapExplorationSave {
@@ -103,7 +145,9 @@ export function loadMapExploration(seedKey: string, legacyVisitedChunks: readonl
       version: 2,
       detailedChunks: Array.isArray(parsed.detailedChunks) ? parsed.detailedChunks.slice(-MAX_DETAILED_CHUNKS) : [],
       discoveredSectors: parsed.discoveredSectors && typeof parsed.discoveredSectors === "object" ? parsed.discoveredSectors : {},
+      sectorOrder: Array.isArray(parsed.sectorOrder) ? parsed.sectorOrder.slice(-MAX_DETAILED_SECTORS) : Object.keys(parsed.discoveredSectors ?? {}).slice(-MAX_DETAILED_SECTORS),
       discoveredRegions: Array.isArray(parsed.discoveredRegions) ? parsed.discoveredRegions.slice(-MAX_REGIONS) : [],
+      compactedRegions: Array.isArray(parsed.compactedRegions) ? parsed.compactedRegions.slice(-MAX_REGIONS) : [],
       lastPosition: parsed.lastPosition && typeof parsed.lastPosition.worldX === "string" && typeof parsed.lastPosition.worldY === "string" ? parsed.lastPosition : { worldX: "0", worldY: "0" },
     };
   } catch {

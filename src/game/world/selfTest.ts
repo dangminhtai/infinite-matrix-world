@@ -11,7 +11,7 @@ import { migrateInventory } from "../core/SaveManager";
 import { CHARACTER_CATALOG } from "../characters/characterCatalog";
 import { ASCENSION_CAPS, ascensionCostAt, calculateCharacterStats, moraCostForNextLevel, totalMoraCost } from "../characters/characterProgression";
 import { ascendCharacter, createDefaultProfile, migrateWorldWallet, purchaseCharacter, sanitizeProfile, upgradeCharacter, upgradeCharacterMax } from "../characters/ProfileManager";
-import { discoverChunk, floorDivBigInt, isChunkDiscovered, migrateVisitedChunks } from "../exploration/mapExploration";
+import { discoverChunk, discoverChunkRadius, floorDivBigInt, isChunkDiscovered, migrateVisitedChunks } from "../exploration/mapExploration";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -185,6 +185,8 @@ export function selfTest(): string[] {
   assert(!isChunkDiscovered(migratedExploration, 1n, 0n), "undiscovered chunk remains hidden");
   const discoveredAgain = discoverChunk(migratedExploration, -9n, -9n);
   assert(discoveredAgain.discoveredSectors["-2,-2"] === migratedExploration.discoveredSectors["-2,-2"], "exploration discovery idempotent");
+  const damagedPosition = { ...migratedExploration, lastPosition: { worldX: "broken", worldY: "save" } };
+  assert(isChunkDiscovered(discoverChunkRadius(damagedPosition, 0n, 0n), 1n, 1n), "damaged exploration position does not crash reveal");
   passed.push("Map exploration");
 
   return passed;

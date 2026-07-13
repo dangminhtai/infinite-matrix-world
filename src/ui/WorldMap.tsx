@@ -8,7 +8,8 @@ import { drawSmoothBiomeLayer } from "./mapRaster";
 import { isChunkDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
 
 const MAX_MAP_TILES = 512;
-const MAX_IN_FLIGHT = 2;
+const MOBILE_CACHE_BYTES = 24 * 1024 * 1024;
+const DESKTOP_CACHE_BYTES = 64 * 1024 * 1024;
 const ZOOM_BUTTON_STEP = 8;
 const sharedTileCaches = new Map<string, Map<string, MapTile>>();
 
@@ -76,12 +77,25 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
   const zoomLocked = minScale >= MAP_ZOOM_MAX_SCALE;
   const atMinZoom = zoomLocked || zoomLevel <= MAP_ZOOM_MIN_LEVEL;
   const atMaxZoom = zoomLocked || zoomLevel >= MAP_ZOOM_MAX_LEVEL;
+  const constrainedDevice = viewport.width <= 900 || window.matchMedia("(pointer: coarse)").matches;
+  const cacheBudgetBytes = useRef(DESKTOP_CACHE_BYTES);
+  const maxInFlight = useRef(2);
+  cacheBudgetBytes.current = constrainedDevice ? MOBILE_CACHE_BYTES : DESKTOP_CACHE_BYTES;
+  maxInFlight.current = constrainedDevice ? 1 : 2;
 
   const rememberTile = useCallback((tile: MapTile) => {
     const key = tileKey(tile.cx, tile.cy);
     cache.current.delete(key);
     cache.current.set(key, tile);
-    while (cache.current.size > MAX_MAP_TILES) cache.current.delete(cache.current.keys().next().value as string);
+    let bytes = 0;
+    for (const cached of cache.current.values()) bytes += cached.biomes.byteLength;
+    while (cache.current.size > MAX_MAP_TILES || bytes > cacheBudgetBytes.current) {
+      const oldestKey = cache.current.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      const oldest = cache.current.get(oldestKey);
+      if (oldest) bytes -= oldest.biomes.byteLength;
+      cache.current.delete(oldestKey);
+    }
   }, []);
 
   useEffect(() => {
@@ -94,7 +108,7 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
     workerRef.current = worker;
     const updatePending = () => setPendingTiles(queue.current.length + inFlight.current.size);
     pumpRef.current = () => {
-      while (workerRef.current && inFlight.current.size < MAX_IN_FLIGHT && queue.current.length) {
+      while (workerRef.current && inFlight.current.size < maxInFlight.current && queue.current.length) {
         const job = queue.current.shift();
         if (!job || cache.current.has(job.key)) continue;
         const id = requestId.current++;
