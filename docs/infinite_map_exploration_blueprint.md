@@ -1491,8 +1491,8 @@ src/
 ## Công việc
 
 - [x] Theo dõi fine cell `2x2` tile của player.
-- [x] Reveal bán kính chunk khi player sang chunk mới.
-- [ ] High-ground bonus tùy chọn.
+- [x] Reveal hình tròn bán kính 3 fine-cell khi player đổi fine-cell.
+- [x] High-ground bonus tăng bán kính lên 4 khi cao hơn trung bình lân cận ít nhất 1,5 đơn vị.
 - [x] Minimap dùng chunk đã tải.
 - [x] Fog nhị phân che chunk chưa khám phá.
 - [x] Lọc marker quái ngoài vùng đã khám phá.
@@ -1526,9 +1526,9 @@ không request worker lúc startup
 # 28. Phase M2 — World map UI
 
 - [x] Map camera BigInt + local offset.
-- [ ] Tile key theo zoom.
+- [x] Tile key độc lập zoom vì payload luôn là biome của một chunk; zoom chỉ thay đổi phép chiếu, tránh nhân đôi cache.
 - [x] Phân loại `unknown/coarse/partial/detailed` từ mask phân cấp.
-- [ ] Fog layer tách terrain.
+- [x] Fog alpha layer tách khỏi terrain raster, nội suy biên độc lập.
 - [x] Player/waypoint.
 - [x] Không hiện quái chưa biết.
 - [x] Pan/zoom giữ tọa độ toàn cục ở `BigInt`.
@@ -1567,10 +1567,10 @@ integration avg/max
 
 # 30. Phase M4 — Waypoint/teleport
 
-- [ ] Waypoint known area.
+- [x] Cho đặt waypoint trong unknown để định hướng, nhưng không reveal và không cho safe teleport đến đó.
 - [x] Marker mục tiêu/mốc ngoài minimap được clamp vào mép.
-- [ ] Giới hạn 100.
-- [ ] Pin region có waypoint.
+- [x] Giới hạn một waypoint hoạt động, chặt hơn ngân sách 100 và đúng UI hiện tại.
+- [x] Pin region có waypoint, ưu tiên evict fine/sector ở region khác.
 - [x] Safe teleport chỉ cho waypoint nằm trong chunk đã khám phá.
 - [x] Developer teleport mặc định không reveal điểm đáp.
 - [x] Không mở đường teleport; chỉ điểm đáp được khám phá theo vòng cập nhật player.
@@ -1580,12 +1580,12 @@ integration avg/max
 
 # 31. Phase M5 — Storage production
 
-- [ ] IndexedDB adapter.
-- [ ] Transaction write.
-- [ ] Import/export.
-- [ ] Backup revision.
-- [ ] Recovery.
-- [ ] Page fine/sector/region.
+- [x] IndexedDB adapter chạy song song với localStorage fallback.
+- [x] Transaction write cho metadata, fine pages, sector pages và snapshot.
+- [x] Import/export JSON V2 trong Developer.
+- [x] Giữ hai snapshot revision gần nhất cho mỗi world.
+- [x] Recovery từ snapshot mới nhất đọc được khi page/meta lỗi.
+- [x] Page riêng cho fine chunk và sector; region metadata nhỏ nằm trong meta record.
 
 Chỉ làm khi localStorage bắt đầu thành nút thắt.
 

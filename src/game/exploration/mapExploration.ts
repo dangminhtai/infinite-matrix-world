@@ -1,3 +1,5 @@
+import { exportExploration, importExploration, loadExplorationFromIndexedDb, saveExplorationToIndexedDb } from "./indexedDbExploration";
+
 const CHUNK_SIZE_TILES = 16n;
 const FINE_GRID_SIZE = 8n;
 const FINE_CELL_SIZE_TILES = CHUNK_SIZE_TILES / FINE_GRID_SIZE;
@@ -17,6 +19,7 @@ export type MapExplorationSave = {
   sectorOrder: string[];
   discoveredRegions: string[];
   compactedRegions: string[];
+  pinnedRegions: string[];
   lastPosition: { worldX: string; worldY: string };
   revision: number;
 };
@@ -97,6 +100,7 @@ export function emptyMapExploration(): MapExplorationSave {
     sectorOrder: [],
     discoveredRegions: [],
     compactedRegions: [],
+    pinnedRegions: [],
     lastPosition: { worldX: "0", worldY: "0" },
     revision: 0,
   };
@@ -120,6 +124,21 @@ function regionInfo(sx: bigint, sy: bigint): { key: string; bit: number } {
 
 function regionKey(sx: bigint, sy: bigint): string {
   return regionInfo(sx, sy).key;
+}
+
+function chunkRegionKey(cx: bigint, cy: bigint): string {
+  const sector = sectorInfo(cx, cy);
+  return regionKey(sector.sx, sector.sy);
+}
+
+function detailedChunkIsPinned(save: MapExplorationSave, key: string): boolean {
+  const parsed = parsePairKey(key);
+  return parsed ? save.pinnedRegions.includes(chunkRegionKey(parsed[0], parsed[1])) : false;
+}
+
+function sectorIsPinned(save: MapExplorationSave, key: string): boolean {
+  const parsed = parsePairKey(key);
+  return parsed ? save.pinnedRegions.includes(regionKey(parsed[0], parsed[1])) : false;
 }
 
 export function isChunkDiscovered(save: MapExplorationSave, cx: bigint, cy: bigint): boolean {
@@ -159,6 +178,7 @@ function cloneExploration(save: MapExplorationSave): MapExplorationSave {
     sectorOrder: [...save.sectorOrder],
     discoveredRegions: [...save.discoveredRegions],
     compactedRegions: [...save.compactedRegions],
+    pinnedRegions: [...save.pinnedRegions],
     lastPosition: { ...save.lastPosition },
   };
 }
@@ -181,7 +201,9 @@ function revealFineCellMutable(save: MapExplorationSave, globalFineX: bigint, gl
     save.detailedChunks.push(key);
   }
   while (save.detailedChunks.length > MAX_DETAILED_CHUNKS) {
-    const evicted = save.detailedChunks.shift();
+    const evictionIndex = save.detailedChunks.findIndex((entry) => !detailedChunkIsPinned(save, entry));
+    if (evictionIndex < 0) break;
+    const [evicted] = save.detailedChunks.splice(evictionIndex, 1);
     if (evicted) delete save.fineChunks[evicted];
   }
 
@@ -191,7 +213,9 @@ function revealFineCellMutable(save: MapExplorationSave, globalFineX: bigint, gl
     save.sectorOrder.push(sector.key);
   }
   while (save.sectorOrder.length > MAX_DETAILED_SECTORS) {
-    const evicted = save.sectorOrder.shift();
+    const evictionIndex = save.sectorOrder.findIndex((entry) => !sectorIsPinned(save, entry));
+    if (evictionIndex < 0) break;
+    const [evicted] = save.sectorOrder.splice(evictionIndex, 1);
     if (!evicted) break;
     delete save.discoveredSectors[evicted];
     const parsed = parsePairKey(evicted);
@@ -289,6 +313,7 @@ export function loadMapExploration(seedKey: string, legacyVisitedChunks: readonl
       sectorOrder: Array.isArray(parsed.sectorOrder) ? parsed.sectorOrder.filter((key) => parsePairKey(key)).slice(-MAX_DETAILED_SECTORS) : Object.keys(discoveredSectors).slice(-MAX_DETAILED_SECTORS),
       discoveredRegions: Array.isArray(parsed.discoveredRegions) ? parsed.discoveredRegions.filter((key) => parsePairKey(key)).slice(-MAX_REGIONS) : [],
       compactedRegions: Array.isArray(parsed.compactedRegions) ? parsed.compactedRegions.filter((key) => parsePairKey(key)).slice(-MAX_REGIONS) : [],
+      pinnedRegions: Array.isArray(parsed.pinnedRegions) ? parsed.pinnedRegions.filter((key) => parsePairKey(key)).slice(-100) : [],
       lastPosition: parsed.lastPosition && /^-?\d+$/.test(parsed.lastPosition.worldX) && /^-?\d+$/.test(parsed.lastPosition.worldY) ? parsed.lastPosition : { worldX: "0", worldY: "0" },
       revision: Number.isSafeInteger(parsed.revision) && (parsed.revision ?? 0) >= 0 ? parsed.revision as number : 0,
     };
@@ -310,6 +335,24 @@ function writeMapExploration(seedKey: string, save: MapExplorationSave): void {
   }
   metrics.lastSaveMs = performance.now() - startedAt;
   metrics.saveBytes = new TextEncoder().encode(serialized).byteLength;
+  void saveExplorationToIndexedDb(seedKey, save).catch((error: unknown) => {
+    metrics.saveError = `IndexedDB: ${error instanceof Error ? error.message : String(error)}`;
+  });
+}
+
+export async function hydrateMapExploration(seedKey: string, localSave: MapExplorationSave): Promise<MapExplorationSave> {
+  try {
+    const indexedSave = await loadExplorationFromIndexedDb(seedKey);
+    if (!indexedSave || indexedSave.version !== 2 || indexedSave.revision < localSave.revision) {
+      void saveExplorationToIndexedDb(seedKey, localSave);
+      return localSave;
+    }
+    if (indexedSave.revision > localSave.revision) localStorage.setItem(storageKey(seedKey), JSON.stringify(indexedSave));
+    return indexedSave;
+  } catch (error) {
+    metrics.saveError = `IndexedDB: ${error instanceof Error ? error.message : String(error)}`;
+    return localSave;
+  }
 }
 
 export function flushMapExplorationSaves(): void {
@@ -341,8 +384,36 @@ export function estimateMapExplorationBytes(save: MapExplorationSave): number {
   return new TextEncoder().encode(JSON.stringify(save)).byteLength;
 }
 
+export const exportMapExploration = exportExploration;
+
+export function importMapExploration(serialized: string): MapExplorationSave {
+  const imported = importExploration(serialized);
+  const fineChunks = sanitizeRecord(imported.fineChunks, 16);
+  const discoveredSectors = sanitizeRecord(imported.discoveredSectors, 16);
+  return {
+    version: 2,
+    fineChunks,
+    detailedChunks: Array.isArray(imported.detailedChunks) ? imported.detailedChunks.filter((key) => parsePairKey(key)).slice(-MAX_DETAILED_CHUNKS) : [],
+    discoveredSectors,
+    sectorOrder: Array.isArray(imported.sectorOrder) ? imported.sectorOrder.filter((key) => parsePairKey(key)).slice(-MAX_DETAILED_SECTORS) : [],
+    discoveredRegions: Array.isArray(imported.discoveredRegions) ? imported.discoveredRegions.filter((key) => parsePairKey(key)).slice(-MAX_REGIONS) : [],
+    compactedRegions: Array.isArray(imported.compactedRegions) ? imported.compactedRegions.filter((key) => parsePairKey(key)).slice(-MAX_REGIONS) : [],
+    pinnedRegions: Array.isArray(imported.pinnedRegions) ? imported.pinnedRegions.filter((key) => parsePairKey(key)).slice(-100) : [],
+    lastPosition: imported.lastPosition && /^-?\d+$/.test(imported.lastPosition.worldX) && /^-?\d+$/.test(imported.lastPosition.worldY) ? imported.lastPosition : { worldX: "0", worldY: "0" },
+    revision: Number.isSafeInteger(imported.revision) && imported.revision >= 0 ? imported.revision + 1 : 1,
+  };
+}
+
 export function getMapExplorationMetrics(): MapExplorationMetrics {
   return { ...metrics };
+}
+
+export function setExplorationWaypointPin(save: MapExplorationSave, worldX: bigint | null, worldY: bigint | null): MapExplorationSave {
+  const pinnedRegions = worldX === null || worldY === null
+    ? []
+    : [chunkRegionKey(floorDivBigInt(worldX, CHUNK_SIZE_TILES), floorDivBigInt(worldY, CHUNK_SIZE_TILES))];
+  if (pinnedRegions.length === save.pinnedRegions.length && pinnedRegions.every((key, index) => key === save.pinnedRegions[index])) return save;
+  return { ...save, pinnedRegions, revision: save.revision + 1 };
 }
 
 export function clearMapExploration(seedKey: string): MapExplorationSave {

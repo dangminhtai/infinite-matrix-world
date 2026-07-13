@@ -25,6 +25,7 @@ export function drawSmoothBiomeLayer({
   pixelsPerTile,
   resolutionScale = 1,
   getBiome,
+  isDiscovered,
 }: {
   ctx: CanvasRenderingContext2D;
   width: number;
@@ -36,6 +37,7 @@ export function drawSmoothBiomeLayer({
   pixelsPerTile: number;
   resolutionScale?: number;
   getBiome: (x: bigint, y: bigint) => BiomeId | null;
+  isDiscovered?: (x: bigint, y: bigint) => boolean;
 }): void {
   const rasterWidth = Math.max(1, Math.ceil(width * resolutionScale));
   const rasterHeight = Math.max(1, Math.ceil(height * resolutionScale));
@@ -45,6 +47,7 @@ export function drawSmoothBiomeLayer({
   const raster = canvas.getContext("2d");
   if (!raster) return;
   const image = raster.createImageData(rasterWidth, rasterHeight);
+  const fogImage = isDiscovered ? raster.createImageData(rasterWidth, rasterHeight) : null;
   const background: [number, number, number] = [23, 36, 42];
 
   for (let py = 0; py < rasterHeight; py += 1) {
@@ -73,6 +76,21 @@ export function drawSmoothBiomeLayer({
         image.data[target + channel] = Math.round(top + (bottom - top) * ty);
       }
       image.data[target + 3] = 255;
+      if (fogImage && isDiscovered) {
+        const visible = [
+          isDiscovered(worldX, worldY) ? 1 : 0,
+          isDiscovered(worldX + 1n, worldY) ? 1 : 0,
+          isDiscovered(worldX, worldY + 1n) ? 1 : 0,
+          isDiscovered(worldX + 1n, worldY + 1n) ? 1 : 0,
+        ];
+        const top = visible[0] + (visible[1] - visible[0]) * tx;
+        const bottom = visible[2] + (visible[3] - visible[2]) * tx;
+        const visibility = top + (bottom - top) * ty;
+        fogImage.data[target] = background[0];
+        fogImage.data[target + 1] = background[1];
+        fogImage.data[target + 2] = background[2];
+        fogImage.data[target + 3] = Math.round((1 - visibility) * 255);
+      }
     }
   }
   raster.putImageData(image, 0, 0);
@@ -80,5 +98,15 @@ export function drawSmoothBiomeLayer({
   ctx.imageSmoothingQuality = "high";
   ctx.save();
   ctx.drawImage(canvas, 0, 0, rasterWidth, rasterHeight, 0, 0, width, height);
+  if (fogImage) {
+    const fogCanvas = document.createElement("canvas");
+    fogCanvas.width = rasterWidth;
+    fogCanvas.height = rasterHeight;
+    const fogContext = fogCanvas.getContext("2d");
+    if (fogContext) {
+      fogContext.putImageData(fogImage, 0, 0);
+      ctx.drawImage(fogCanvas, 0, 0, rasterWidth, rasterHeight, 0, 0, width, height);
+    }
+  }
   ctx.restore();
 }

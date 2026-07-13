@@ -23,7 +23,7 @@ import { addProfileReward, ascendCharacter, loadAndMigratePlayerProfile, profile
 import { CharacterMenu } from "./ui/CharacterMenu";
 import type { EnemyCombatState } from "./game/entities/EntitySystem";
 import { markStartup, recordRuntimeSample } from "./game/core/StartupProfiler";
-import { clearMapExploration, discoverAtWorldTile, getMapExplorationMetrics, loadMapExploration, saveMapExploration, type MapExplorationSave } from "./game/exploration/mapExploration";
+import { clearMapExploration, discoverAtWorldTile, exportMapExploration, getMapExplorationMetrics, hydrateMapExploration, importMapExploration, loadMapExploration, saveMapExploration, setExplorationWaypointPin, type MapExplorationSave } from "./game/exploration/mapExploration";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -55,6 +55,22 @@ function saveMapWaypoint(seedKey: string, waypoint: MapWaypoint | null): void {
   const key = `genshin-fake.map-waypoint.v1.${seedKey}`;
   if (waypoint) localStorage.setItem(key, JSON.stringify(waypoint));
   else localStorage.removeItem(key);
+}
+
+function explorationRevealRadius(chunks: ChunkPayload[], chunkX: bigint, chunkY: bigint, worldX: bigint, worldY: bigint): number {
+  const chunk = chunks.find((entry) => entry.cx === chunkX.toString() && entry.cy === chunkY.toString());
+  if (!chunk) return 3;
+  const localX = Number(worldX - chunkX * 16n);
+  const localY = Number(worldY - chunkY * 16n);
+  const index = (z: number, x: number) => Math.max(0, Math.min(16, z)) * 17 + Math.max(0, Math.min(16, x));
+  const currentHeight = chunk.heights[index(localY, localX)] ?? 0;
+  let total = 0;
+  let samples = 0;
+  for (let dz = -2; dz <= 2; dz += 1) for (let dx = -2; dx <= 2; dx += 1) {
+    total += chunk.heights[index(localY + dz, localX + dx)] ?? currentHeight;
+    samples += 1;
+  }
+  return currentHeight - total / samples >= 1.5 ? 4 : 3;
 }
 
 function defaultSeedStrings(): string[][] {
@@ -172,6 +188,18 @@ export default function App() {
   const lastTile = useRef<{ x: bigint; y: bigint; offsetX: number; offsetY: number } | null>(null);
   const lastRevealCell = useRef("");
   const lastStatsAt = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    setMapExploration((localSave) => {
+      void hydrateMapExploration(seedKey, localSave).then((hydrated) => {
+        if (!active) return;
+        setMapExploration((current) => hydrated.revision > current.revision ? hydrated : current);
+      });
+      return localSave;
+    });
+    return () => { active = false; };
+  }, [seedKey]);
   const lastExplorationAt = useRef(0);
   const chunkRefreshFrame = useRef<number | null>(null);
   const notificationTimer = useRef<number | null>(null);
@@ -343,7 +371,30 @@ export default function App() {
   const updateMapWaypoint = useCallback((waypoint: MapWaypoint | null) => {
     setMapWaypoint(waypoint);
     saveMapWaypoint(seedKey, waypoint);
+    setMapExploration((current) => {
+      const next = setExplorationWaypointPin(current, waypoint ? BigInt(waypoint.worldX) : null, waypoint ? BigInt(waypoint.worldY) : null);
+      if (next !== current) saveMapExploration(seedKey, next);
+      return next;
+    });
   }, [seedKey]);
+
+  const exportCurrentMap = useCallback(() => {
+    const blob = new Blob([exportMapExploration(mapExploration)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `genshin-fake-map-${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [mapExploration]);
+
+  useEffect(() => {
+    setMapExploration((current) => {
+      const next = setExplorationWaypointPin(current, mapWaypoint ? BigInt(mapWaypoint.worldX) : null, mapWaypoint ? BigInt(mapWaypoint.worldY) : null);
+      if (next !== current) saveMapExploration(seedKey, next);
+      return next;
+    });
+  }, [mapWaypoint, seedKey]);
 
   const applySettings = useCallback((next: GameSettings) => {
     saveSettings(next);
@@ -365,6 +416,23 @@ export default function App() {
       setNotification("");
     }, 2200);
   }, []);
+
+  const importCurrentMap = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void file.text().then((text) => {
+        const imported = importMapExploration(text);
+        setMapExploration(imported);
+        saveMapExploration(seedKey, imported);
+        notify("Đã nhập dữ liệu khám phá");
+      }).catch((error: unknown) => notify(`Không thể nhập map: ${error instanceof Error ? error.message : String(error)}`));
+    };
+    input.click();
+  }, [notify, seedKey]);
 
   const selectedProgress = profile.characters[profile.selectedCharacterId] ?? { level: 1, ascendedCaps: [] };
   const playerStats = useMemo(() => calculateCharacterStats(CHARACTER_CATALOG[profile.selectedCharacterId], selectedProgress.level), [profile.selectedCharacterId, selectedProgress.level]);
@@ -430,8 +498,9 @@ export default function App() {
     const revealCell = `${worldTileX >= 0n ? worldTileX / 2n : (worldTileX - 1n) / 2n},${worldTileY >= 0n ? worldTileY / 2n : (worldTileY - 1n) / 2n}`;
     if (revealCell !== lastRevealCell.current) {
       lastRevealCell.current = revealCell;
+      const revealRadius = explorationRevealRadius(chunks, chunkX, chunkY, worldTileX, worldTileY);
       setMapExploration((current) => {
-        const next = discoverAtWorldTile(current, worldTileX, worldTileY, 3);
+        const next = discoverAtWorldTile(current, worldTileX, worldTileY, revealRadius);
         if (next !== current) saveMapExploration(seedKey, next);
         return next;
       });
@@ -556,6 +625,8 @@ export default function App() {
         onToggleCollisionDebug={() => setDebugCollision((value) => !value)}
         onRunTests={runSelfTests}
         onResetExploration={resetExploration}
+        onExportMap={exportCurrentMap}
+        onImportMap={importCurrentMap}
       />}
       {showInventory && <InventoryMenu inventory={inventory} onClose={() => setShowInventory(false)} />}
       {showCharacters && <CharacterMenu

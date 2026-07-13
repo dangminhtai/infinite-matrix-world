@@ -87,13 +87,13 @@ export function Minimap({ chunks, exploration, worldTileX, worldTileY, offsetX, 
           getBiome: (wx, wy) => {
             const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
             const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
-            if (!isWorldTileDiscovered(exploration, wx, wy)) return null;
             const chunk = chunkMap.get(`${cx},${cy}`);
             if (!chunk) return null;
             const x = Number(wx - cx * BigInt(CHUNK_SIZE));
             const y = Number(wy - cy * BigInt(CHUNK_SIZE));
             return (chunk.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
           },
+          isDiscovered: (wx, wy) => isWorldTileDiscovered(exploration, wx, wy),
         });
         terrainCtx.restore();
       }

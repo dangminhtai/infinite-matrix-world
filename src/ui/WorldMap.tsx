@@ -247,13 +247,13 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
       getBiome: (wx, wy) => {
         const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
         const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
-        if (!isWorldTileDiscovered(exploration, wx, wy)) return null;
         const tile = cache.current.get(tileKey(cx, cy));
         if (!tile) return null;
         const x = Number(wx - cx * BigInt(CHUNK_SIZE));
         const y = Number(wy - cy * BigInt(CHUNK_SIZE));
         return (tile.biomes[y * CHUNK_SIZE + x] ?? 5) as BiomeId;
       },
+      isDiscovered: (wx, wy) => isWorldTileDiscovered(exploration, wx, wy),
     });
 
     enemyHits.current = [];
