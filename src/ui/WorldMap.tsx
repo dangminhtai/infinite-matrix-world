@@ -5,7 +5,7 @@ import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import { calculateMapMinScale, clampZoomLevel, MAP_ZOOM_DEFAULT_LEVEL, MAP_ZOOM_MAX_LEVEL, MAP_ZOOM_MAX_SCALE, MAP_ZOOM_MIN_LEVEL, MAX_VISIBLE_MAP_TILES, scaleRatioToZoomDelta, zoomLevelToScale } from "../game/map/mapZoom";
 import type { BiomeId, ChunkPayload } from "../game/types";
 import { drawSmoothBiomeLayer } from "./mapRaster";
-import { isChunkDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
+import { isChunkDiscovered, isWorldTileDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
 
 const MAX_MAP_TILES = 512;
 const MOBILE_CACHE_BYTES = 24 * 1024 * 1024;
@@ -64,8 +64,9 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
   const cache = useRef(getSeedCache(seedKey));
   const workerRef = useRef<Worker | null>(null);
   const queue = useRef<Array<{ key: string; cx: string; cy: string }>>([]);
-  const inFlight = useRef(new Map<number, string>());
+  const inFlight = useRef(new Map<number, { key: string; epoch: number }>());
   const wanted = useRef(new Set<string>());
+  const viewportEpoch = useRef(0);
   const requestId = useRef(1);
   const pumpRef = useRef<() => void>(() => undefined);
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -112,15 +113,15 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
         const job = queue.current.shift();
         if (!job || cache.current.has(job.key)) continue;
         const id = requestId.current++;
-        inFlight.current.set(id, job.key);
+        inFlight.current.set(id, { key: job.key, epoch: viewportEpoch.current });
         workerRef.current.postMessage({ requestId: id, seed, cx: job.cx, cy: job.cy });
       }
       updatePending();
     };
     worker.onmessage = (event: MessageEvent<{ requestId: number; tile?: MapTile; error?: string }>) => {
-      const key = inFlight.current.get(event.data.requestId);
+      const request = inFlight.current.get(event.data.requestId);
       inFlight.current.delete(event.data.requestId);
-      if (event.data.tile && key && wanted.current.has(key)) {
+      if (event.data.tile && request && request.epoch === viewportEpoch.current && wanted.current.has(request.key)) {
         rememberTile(event.data.tile);
         setRevision((value) => value + 1);
       }
@@ -201,10 +202,11 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
       const key = tileKey(cx, cy);
       if (!isChunkDiscovered(exploration, cx, cy)) continue;
       nextWanted.add(key);
-      if (!cache.current.has(key) && ![...inFlight.current.values()].includes(key)) {
+      if (!cache.current.has(key) && ![...inFlight.current.values()].some((request) => request.key === key)) {
         jobs.push({ key, cx: cx.toString(), cy: cy.toString(), distance: Math.max(Math.abs(Number(cx - centerCx)), Math.abs(Number(cy - centerCy))) });
       }
     }
+    viewportEpoch.current += 1;
     wanted.current = nextWanted;
     jobs.sort((a, b) => a.distance - b.distance);
     queue.current = jobs.slice(0, MAX_VISIBLE_MAP_TILES);
@@ -245,7 +247,7 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
       getBiome: (wx, wy) => {
         const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
         const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
-        if (!isChunkDiscovered(exploration, cx, cy)) return null;
+        if (!isWorldTileDiscovered(exploration, wx, wy)) return null;
         const tile = cache.current.get(tileKey(cx, cy));
         if (!tile) return null;
         const x = Number(wx - cx * BigInt(CHUNK_SIZE));
@@ -258,7 +260,7 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
     for (const enemy of enemies) {
       const enemyX = BigInt(enemy.worldX);
       const enemyY = BigInt(enemy.worldY);
-      if (!isChunkDiscovered(exploration, floorDiv(enemyX, BigInt(CHUNK_SIZE)), floorDiv(enemyY, BigInt(CHUNK_SIZE)))) continue;
+      if (!isWorldTileDiscovered(exploration, enemyX, enemyY)) continue;
       if (abs(enemyX - view.x) > visibleTiles || abs(enemyY - view.y) > visibleTiles) continue;
       const point = project(enemyX, enemyY, enemy.offsetX, enemy.offsetY);
       if (point.x < -12 || point.y < -12 || point.x > width + 12 || point.y > height + 12) continue;
@@ -308,7 +310,7 @@ export function WorldMap({ seed, chunks, exploration, playerX, playerY, playerOf
     ctx.restore();
   }, [enemies, exploration, playerOffsetX, playerOffsetY, playerX, playerY, playerYaw, revision, scale, target?.id, waypoint]);
 
-  const waypointDiscovered = waypoint ? isChunkDiscovered(exploration, floorDiv(BigInt(waypoint.worldX), BigInt(CHUNK_SIZE)), floorDiv(BigInt(waypoint.worldY), BigInt(CHUNK_SIZE))) : false;
+  const waypointDiscovered = waypoint ? isWorldTileDiscovered(exploration, BigInt(waypoint.worldX), BigInt(waypoint.worldY)) : false;
 
   return <div className="worldMapOverlay" role="dialog" aria-modal="true" aria-label="Bản đồ thế giới">
     <header className="worldMapHeader">

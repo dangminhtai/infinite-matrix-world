@@ -11,7 +11,7 @@ import { migrateInventory } from "../core/SaveManager";
 import { CHARACTER_CATALOG } from "../characters/characterCatalog";
 import { ASCENSION_CAPS, ascensionCostAt, calculateCharacterStats, moraCostForNextLevel, totalMoraCost } from "../characters/characterProgression";
 import { ascendCharacter, createDefaultProfile, migrateWorldWallet, purchaseCharacter, sanitizeProfile, upgradeCharacter, upgradeCharacterMax } from "../characters/ProfileManager";
-import { discoverChunk, discoverChunkRadius, floorDivBigInt, isChunkDiscovered, migrateVisitedChunks } from "../exploration/mapExploration";
+import { decodeHex256, decodeHex64, discoverAtWorldTile, discoverChunk, discoverChunkRadius, encodeHex256, encodeHex64, floorDivBigInt, floorModBigInt, hasBit, isChunkDiscovered, isWorldTileDiscovered, migrateVisitedChunks, parsePairKey, setBit } from "../exploration/mapExploration";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(`selfTest failed: ${message}`);
@@ -179,7 +179,15 @@ export function selfTest(): string[] {
 
   assert(floorDivBigInt(7n, 8n) === 0n && floorDivBigInt(8n, 8n) === 1n, "positive exploration floor division");
   assert(floorDivBigInt(-1n, 8n) === -1n && floorDivBigInt(-8n, 8n) === -1n && floorDivBigInt(-9n, 8n) === -2n, "negative exploration floor division");
+  assert(floorModBigInt(-1n, 8n) === 7n && floorModBigInt(-8n, 8n) === 0n && floorModBigInt(-9n, 8n) === 7n, "non-negative exploration floor modulo");
+  assert(parsePairKey("-10,20")?.[0] === -10n && parsePairKey("invalid") === null, "exploration pair key parser");
+  const cornerMask = setBit(setBit(setBit(setBit(0n, 0), 7), 56), 63);
+  assert([0, 7, 56, 63].every((index) => hasBit(cornerMask, index)), "exploration bitset corners");
+  assert(decodeHex64(encodeHex64(cornerMask)) === cornerMask, "hex64 roundtrip");
+  const mask256 = (1n << 255n) | 1n;
+  assert(decodeHex256(encodeHex256(mask256)) === mask256, "hex256 roundtrip");
   const migratedExploration = migrateVisitedChunks(["0,0", "7,7", "8,8", "-1,-1", "-8,-8", "-9,-9", "invalid"]);
+  assert(migratedExploration.discoveredRegions.includes("-1,-1"), "negative sector maps to negative region");
   assert(isChunkDiscovered(migratedExploration, 0n, 0n), "origin exploration migration");
   assert(isChunkDiscovered(migratedExploration, -9n, -9n), "negative exploration migration");
   assert(!isChunkDiscovered(migratedExploration, 1n, 0n), "undiscovered chunk remains hidden");
@@ -187,6 +195,9 @@ export function selfTest(): string[] {
   assert(discoveredAgain.discoveredSectors["-2,-2"] === migratedExploration.discoveredSectors["-2,-2"], "exploration discovery idempotent");
   const damagedPosition = { ...migratedExploration, lastPosition: { worldX: "broken", worldY: "save" } };
   assert(isChunkDiscovered(discoverChunkRadius(damagedPosition, 0n, 0n), 1n, 1n), "damaged exploration position does not crash reveal");
+  assert(JSON.stringify(migrateVisitedChunks(["0,0", "-1,-1"])) === JSON.stringify(migrateVisitedChunks(["0,0", "-1,-1"])), "exploration migration deterministic and idempotent");
+  const partialExploration = discoverAtWorldTile({ ...migrateVisitedChunks([]), fineChunks: {}, detailedChunks: [] }, 100n, 100n, 1);
+  assert(isWorldTileDiscovered(partialExploration, 100n, 100n) && !isWorldTileDiscovered(partialExploration, 110n, 110n), "fine exploration keeps unknown cells hidden");
   passed.push("Map exploration");
 
   return passed;

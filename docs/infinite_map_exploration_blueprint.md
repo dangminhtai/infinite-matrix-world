@@ -1452,30 +1452,30 @@ src/
 
 ## Công việc
 
-- [ ] `floorDiv`/`floorMod`.
+- [x] `floorDiv`/`floorMod` dùng chung cho `BigInt`, gồm tọa độ âm.
 - [x] Mapping chunk/sector/region ở cấp chunk hiện tại.
-- [ ] Key parser/serializer.
-- [ ] Bitset 64/256.
-- [ ] Hex encode/decode.
+- [x] Key parser/serializer có kiểm tra định dạng.
+- [x] Bitset 64/256.
+- [x] Hex encode/decode có giới hạn độ rộng.
 - [x] Runtime schema tối thiểu cho chunk/sector/region.
 - [x] Save V2 tối thiểu, tách theo seed.
 - [x] Migration từ `visitedChunks`, bỏ qua key lỗi.
 - [x] Compaction cơ bản: giới hạn chunk/sector/region và hạ sector cũ về region.
-- [ ] Save byte estimator.
+- [x] Save byte estimator bằng `TextEncoder`.
 
 ## Self-test
 
 - [x] Floor division âm.
-- [ ] Floor mod không âm.
-- [ ] Bit index bốn góc.
+- [x] Floor mod không âm.
+- [x] Bit index bốn góc.
 - [x] Chunk `-1` → sector `-1`, local `7`.
 - [x] Chunk `-8` → sector `-1`, local `0`.
 - [x] Chunk `-9` → sector `-2`, local `7`.
-- [ ] Sector `-1` → region `-1`, local `15`.
-- [ ] Hex64/Hex256 roundtrip.
-- [ ] Migration idempotent.
+- [x] Sector `-1` → region `-1`, local `15` qua cùng phép `floorMod` đã test.
+- [x] Hex64/Hex256 roundtrip.
+- [x] Migration deterministic/idempotent với cùng đầu vào.
 - [x] Entry legacy và `lastPosition` lỗi không crash.
-- [ ] Save sai version bị từ chối rõ.
+- [x] Save sai version hoặc JSON lỗi được từ chối và phục hồi từ legacy.
 
 ## Definition of Done
 
@@ -1490,14 +1490,14 @@ src/
 
 ## Công việc
 
-- [ ] Theo dõi fine cell player.
+- [x] Theo dõi fine cell `2x2` tile của player.
 - [x] Reveal bán kính chunk khi player sang chunk mới.
 - [ ] High-ground bonus tùy chọn.
 - [x] Minimap dùng chunk đã tải.
 - [x] Fog nhị phân che chunk chưa khám phá.
 - [x] Lọc marker quái ngoài vùng đã khám phá.
-- [ ] Debounce save.
-- [ ] Metrics save/reveal.
+- [x] Debounce save 1 giây, flush khi `pagehide`/tab ẩn.
+- [x] Metrics save/reveal hiển thị trong Developer.
 
 ## Benchmark
 
@@ -1527,7 +1527,7 @@ không request worker lúc startup
 
 - [x] Map camera BigInt + local offset.
 - [ ] Tile key theo zoom.
-- [ ] Unknown/coarse/partial/detailed.
+- [x] Phân loại `unknown/coarse/partial/detailed` từ mask phân cấp.
 - [ ] Fog layer tách terrain.
 - [x] Player/waypoint.
 - [x] Không hiện quái chưa biết.
@@ -1541,7 +1541,7 @@ Bản đầu có thể chưa dùng worker; dùng placeholder và dữ liệu cac
 
 - [x] Worker riêng.
 - [x] Request ID.
-- [ ] Viewport epoch.
+- [x] Viewport epoch loại response từ viewport cũ.
 - [x] Stale filtering theo tập tile viewport đang cần.
 - [x] Pending tracking.
 - [x] Priority queue theo khoảng cách tới tâm map.
@@ -1568,13 +1568,13 @@ integration avg/max
 # 30. Phase M4 — Waypoint/teleport
 
 - [ ] Waypoint known area.
-- [ ] Marker unknown bị clamp.
+- [x] Marker mục tiêu/mốc ngoài minimap được clamp vào mép.
 - [ ] Giới hạn 100.
 - [ ] Pin region có waypoint.
 - [x] Safe teleport chỉ cho waypoint nằm trong chunk đã khám phá.
-- [ ] Developer teleport policy.
+- [x] Developer teleport mặc định không reveal điểm đáp.
 - [x] Không mở đường teleport; chỉ điểm đáp được khám phá theo vòng cập nhật player.
-- [x] Save/load waypoint hiện tại.
+- [x] Save/load waypoint hiện tại theo từng seed.
 
 ---
 

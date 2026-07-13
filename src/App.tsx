@@ -23,7 +23,7 @@ import { addProfileReward, ascendCharacter, loadAndMigratePlayerProfile, profile
 import { CharacterMenu } from "./ui/CharacterMenu";
 import type { EnemyCombatState } from "./game/entities/EntitySystem";
 import { markStartup, recordRuntimeSample } from "./game/core/StartupProfiler";
-import { clearMapExploration, discoverChunkRadius, loadMapExploration, saveMapExploration, type MapExplorationSave } from "./game/exploration/mapExploration";
+import { clearMapExploration, discoverAtWorldTile, getMapExplorationMetrics, loadMapExploration, saveMapExploration, type MapExplorationSave } from "./game/exploration/mapExploration";
 
 function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
   const wholeOffset = Math.floor(localOffset);
@@ -35,6 +35,26 @@ function formatWorldCoordinate(baseTile: bigint, localOffset: number): string {
     return `-${magnitude.toString()}.${Math.floor((1 - fraction) * 100).toString().padStart(2, "0")}`;
   }
   return `${integerPart.toString()}.${Math.floor(fraction * 100).toString().padStart(2, "0")}`;
+}
+
+function loadMapWaypoint(seedKey: string): MapWaypoint | null {
+  try {
+    const raw = localStorage.getItem(`genshin-fake.map-waypoint.v1.${seedKey}`);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<MapWaypoint>;
+    if (typeof value.id !== "string" || typeof value.worldX !== "string" || typeof value.worldY !== "string" || typeof value.offsetX !== "number" || typeof value.offsetY !== "number") return null;
+    BigInt(value.worldX);
+    BigInt(value.worldY);
+    return value as MapWaypoint;
+  } catch {
+    return null;
+  }
+}
+
+function saveMapWaypoint(seedKey: string, waypoint: MapWaypoint | null): void {
+  const key = `genshin-fake.map-waypoint.v1.${seedKey}`;
+  if (waypoint) localStorage.setItem(key, JSON.stringify(waypoint));
+  else localStorage.removeItem(key);
 }
 
 function defaultSeedStrings(): string[][] {
@@ -91,7 +111,7 @@ export default function App() {
   const [showMap, setShowMap] = useState(false);
   const [mapEnemies, setMapEnemies] = useState<MapEnemy[]>([]);
   const [trackedTarget, setTrackedTarget] = useState<TrackedTarget | null>(null);
-  const [mapWaypoint, setMapWaypoint] = useState<MapWaypoint | null>(null);
+  const [mapWaypoint, setMapWaypoint] = useState<MapWaypoint | null>(() => loadMapWaypoint(seedKey));
   const [enemyCombat, setEnemyCombat] = useState<EnemyCombatState>(null);
   const manager = useMemo(() => {
     const next = new ChunkManager(seed);
@@ -150,6 +170,7 @@ export default function App() {
   const [teleport, setTeleport] = useState<{ x: bigint; y: bigint; token: number } | null>(null);
   const lastChunk = useRef("0,0");
   const lastTile = useRef<{ x: bigint; y: bigint; offsetX: number; offsetY: number } | null>(null);
+  const lastRevealCell = useRef("");
   const lastStatsAt = useRef(0);
   const lastExplorationAt = useRef(0);
   const chunkRefreshFrame = useRef<number | null>(null);
@@ -273,7 +294,7 @@ export default function App() {
     setProfile(loadAndMigratePlayerProfile(nextKey));
     setMapEnemies([]);
     setTrackedTarget(null);
-    setMapWaypoint(null);
+    setMapWaypoint(loadMapWaypoint(nextKey));
     const saved = localStorage.getItem(`ihmw.exploration.${nextKey}`);
     const nextExploration = saved ? JSON.parse(saved) as ExplorationStats : emptyExploration(nextKey);
     setExploration(nextExploration);
@@ -298,7 +319,12 @@ export default function App() {
     setStatus("loading");
   }, [manager, stats.chunkX, stats.chunkY]);
 
-  const teleportTo = useCallback((x: bigint, y: bigint) => {
+  const teleportTo = useCallback((x: bigint, y: bigint, revealLanding = true) => {
+    if (!revealLanding) {
+      const fineX = x >= 0n ? x / 2n : (x - 1n) / 2n;
+      const fineY = y >= 0n ? y / 2n : (y - 1n) / 2n;
+      lastRevealCell.current = `${fineX},${fineY}`;
+    }
     setTeleport({ x, y, token: Date.now() });
     setExploration((current) => {
       const next = { ...current, teleports: current.teleports + 1 };
@@ -313,6 +339,11 @@ export default function App() {
     setStatus("loading");
     setPending(manager.pendingCount);
   }, [manager, seedKey]);
+
+  const updateMapWaypoint = useCallback((waypoint: MapWaypoint | null) => {
+    setMapWaypoint(waypoint);
+    saveMapWaypoint(seedKey, waypoint);
+  }, [seedKey]);
 
   const applySettings = useCallback((next: GameSettings) => {
     saveSettings(next);
@@ -396,6 +427,15 @@ export default function App() {
     const chunkX = worldTileX >= 0n ? worldTileX / 16n : (worldTileX - 15n) / 16n;
     const chunkY = worldTileY >= 0n ? worldTileY / 16n : (worldTileY - 15n) / 16n;
     const now = performance.now();
+    const revealCell = `${worldTileX >= 0n ? worldTileX / 2n : (worldTileX - 1n) / 2n},${worldTileY >= 0n ? worldTileY / 2n : (worldTileY - 1n) / 2n}`;
+    if (revealCell !== lastRevealCell.current) {
+      lastRevealCell.current = revealCell;
+      setMapExploration((current) => {
+        const next = discoverAtWorldTile(current, worldTileX, worldTileY, 3);
+        if (next !== current) saveMapExploration(seedKey, next);
+        return next;
+      });
+    }
     if (now - lastStatsAt.current >= 250) {
       lastStatsAt.current = now;
       recordRuntimeSample(state.fps, state.frameTimeMaxMs);
@@ -435,11 +475,6 @@ export default function App() {
     lastExplorationAt.current = now;
     const previous = lastTile.current;
     lastTile.current = { x: worldTileX, y: worldTileY, offsetX, offsetY };
-    setMapExploration((current) => {
-      const next = discoverChunkRadius(current, chunkX, chunkY, 1, worldTileX, worldTileY);
-      if (next !== current) saveMapExploration(seedKey, next);
-      return next;
-    });
     setExploration((current) => {
       const visitedChunks = new Set(current.visitedChunks);
       addBounded(visitedChunks, `${chunkX},${chunkY}`, MAX_VISITED_CHUNKS);
@@ -495,7 +530,7 @@ export default function App() {
         waypointDistance={waypointDistance}
         enemyCombat={enemyCombat}
         onClearTarget={() => setTrackedTarget(null)}
-        onClearWaypoint={() => setMapWaypoint(null)}
+        onClearWaypoint={() => updateMapWaypoint(null)}
         onInventory={() => setShowInventory(true)}
         onCharacters={() => setShowCharacters(true)}
         onSettings={() => setShowSettings(true)}
@@ -506,7 +541,7 @@ export default function App() {
         runtimeQuality={runtimeQuality}
         seed={seed}
         performance={performanceStats}
-        developer={{ worldX: stats.worldX, worldY: stats.worldY, chunkX: stats.chunkX, chunkY: stats.chunkY, originX: stats.originX, originY: stats.originY, loadedChunks: chunks.length, pendingChunks: pending, inFlightChunks: manager.inFlightCount, queuedChunks: manager.queuedCount, cacheSize: manager.generated.size, status, tests }}
+        developer={{ worldX: stats.worldX, worldY: stats.worldY, chunkX: stats.chunkX, chunkY: stats.chunkY, originX: stats.originX, originY: stats.originY, loadedChunks: chunks.length, pendingChunks: pending, inFlightChunks: manager.inFlightCount, queuedChunks: manager.queuedCount, cacheSize: manager.generated.size, status, tests, mapFineChunks: mapExploration.detailedChunks.length, mapSectors: mapExploration.sectorOrder.length, mapSaveBytes: getMapExplorationMetrics().saveBytes, mapRevealMs: getMapExplorationMetrics().lastRevealMs, mapSaveMs: getMapExplorationMetrics().lastSaveMs, mapSaveError: getMapExplorationMetrics().saveError }}
         exploration={exploration}
         debug={debug}
         debugCollision={debugCollision}
@@ -514,7 +549,7 @@ export default function App() {
         onClose={() => setShowSettings(false)}
         onOpenSeed={() => { setShowSettings(false); setShowSeed(true); }}
         onOpenTeleport={() => { setShowSettings(false); setShowTeleport(true); }}
-        onResetPosition={() => teleportTo(8n, 8n)}
+        onResetPosition={() => teleportTo(8n, 8n, false)}
         onClearCache={clearCache}
         onResetCamera={() => setResetCameraToken((value) => value + 1)}
         onToggleDebug={() => setDebug((value) => !value)}
@@ -532,9 +567,9 @@ export default function App() {
         onAscend={(id) => commitProfileTransaction(ascendCharacter(profile, id), `${CHARACTER_CATALOG[id].name} đã đột phá`)}
         onClose={() => setShowCharacters(false)}
       />}
-      {showMap && <WorldMap seed={seed} chunks={chunks} exploration={mapExploration} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={setMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
+      {showMap && <WorldMap seed={seed} chunks={chunks} exploration={mapExploration} playerX={stats.worldTileX} playerY={stats.worldTileY} playerOffsetX={stats.offsetX} playerOffsetY={stats.offsetY} playerYaw={stats.playerYaw} enemies={mapEnemies} target={trackedTarget} waypoint={mapWaypoint} allowMapTeleport={settings.gameplay.allowMapTeleport} onSelectTarget={(enemy) => { setTrackedTarget(enemy); setShowMap(false); }} onSetWaypoint={updateMapWaypoint} onTeleportWaypoint={(waypoint) => { teleportTo(BigInt(waypoint.worldX), BigInt(waypoint.worldY)); setShowMap(false); }} onClose={() => setShowMap(false)} />}
       {showSeed && <SeedEditor seed={seed} onApply={applySeed} onClose={() => setShowSeed(false)} />}
-      {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={teleportTo} />}
+      {showTeleport && <TeleportDialog onClose={() => setShowTeleport(false)} onApply={(x, y) => teleportTo(x, y, false)} />}
       {!worldRevealed && <LoadingOverlay ready={initialWorldReady} text={initialWorldReady ? "Sẵn sàng" : `Đang chuẩn bị thế giới... ${Math.min(chunks.length, 9)}/9`} />}
       {error && <pre className="errorOverlay">{error}</pre>}
     </main>

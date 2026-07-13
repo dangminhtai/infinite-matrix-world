@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { CHUNK_SIZE } from "../game/constants";
 import { recordMinimapDraw } from "../game/core/StartupProfiler";
-import { isChunkDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
+import { isWorldTileDiscovered, type MapExplorationSave } from "../game/exploration/mapExploration";
 import type { MapEnemy, MapWaypoint, TrackedTarget } from "../game/map/types";
 import type { BiomeId, ChunkPayload } from "../game/types";
 import { drawSmoothBiomeLayer } from "./mapRaster";
@@ -87,7 +87,7 @@ export function Minimap({ chunks, exploration, worldTileX, worldTileY, offsetX, 
           getBiome: (wx, wy) => {
             const cx = floorDiv(wx, BigInt(CHUNK_SIZE));
             const cy = floorDiv(wy, BigInt(CHUNK_SIZE));
-            if (!isChunkDiscovered(exploration, cx, cy)) return null;
+            if (!isWorldTileDiscovered(exploration, wx, wy)) return null;
             const chunk = chunkMap.get(`${cx},${cy}`);
             if (!chunk) return null;
             const x = Number(wx - cx * BigInt(CHUNK_SIZE));
@@ -107,9 +107,7 @@ export function Minimap({ chunks, exploration, worldTileX, worldTileY, offsetX, 
     ctx.clip();
 
     for (const enemy of enemies) {
-      const enemyCx = floorDiv(BigInt(enemy.worldX), BigInt(CHUNK_SIZE));
-      const enemyCy = floorDiv(BigInt(enemy.worldY), BigInt(CHUNK_SIZE));
-      if (!isChunkDiscovered(exploration, enemyCx, enemyCy)) continue;
+      if (!isWorldTileDiscovered(exploration, BigInt(enemy.worldX), BigInt(enemy.worldY))) continue;
       const sx = cssSize / 2 + (Number(BigInt(enemy.worldX) - px) + enemy.offsetX - offsetX) * scale;
       const sy = cssSize / 2 + (Number(BigInt(enemy.worldY) - py) + enemy.offsetY - offsetY) * scale;
       if (Math.hypot(sx - cssSize / 2, sy - cssSize / 2) > cssSize / 2 - 10) continue;

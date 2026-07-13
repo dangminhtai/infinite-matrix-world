@@ -24,6 +24,12 @@ type DeveloperStats = {
   cacheSize: number;
   status: WorkerStatus;
   tests: string[];
+  mapFineChunks: number;
+  mapSectors: number;
+  mapSaveBytes: number;
+  mapRevealMs: number;
+  mapSaveMs: number;
+  mapSaveError: string | null;
 };
 
 const KEY_OPTIONS = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "KeyJ", "KeyK", "KeyL", "ShiftLeft", "Space"];
@@ -201,7 +207,8 @@ export function SettingsMenu({
               {performance.startup.glbResources.map((resource) => <span key={resource.name}>{resource.name}<strong>{resource.durationMs.toFixed(1)} ms · {resource.transferKB.toFixed(0)} KB</strong></span>)}
             </div>
             <h3>Khám phá</h3>
-            <div className="metricsGrid"><span>Chunks đã thăm<strong>{exploration.visitedChunks.length}</strong></span><span>Quãng đường<strong>{exploration.distanceTiles.toFixed(1)}</strong></span><span>Cây đã thấy<strong>{exploration.seenTrees}</strong></span><span>Đá đã thấy<strong>{exploration.seenRocks}</strong></span></div>
+            <div className="metricsGrid"><span>Chunks đã thăm<strong>{exploration.visitedChunks.length}</strong></span><span>Fine chunks<strong>{developer.mapFineChunks}</strong></span><span>Sectors<strong>{developer.mapSectors}</strong></span><span>Map save<strong>{(developer.mapSaveBytes / 1024).toFixed(1)} KB</strong></span><span>Reveal gần nhất<strong>{developer.mapRevealMs.toFixed(2)} ms</strong></span><span>Save gần nhất<strong>{developer.mapSaveMs.toFixed(2)} ms</strong></span><span>Quãng đường<strong>{exploration.distanceTiles.toFixed(1)}</strong></span><span>Cây đã thấy<strong>{exploration.seenTrees}</strong></span><span>Đá đã thấy<strong>{exploration.seenRocks}</strong></span></div>
+            {developer.mapSaveError && <p className="testResult">Map save lỗi: {developer.mapSaveError}</p>}
             <div className="settingsCommands"><button onClick={onToggleDebug}>{debug ? "Tắt chunk debug" : "Bật chunk debug"}</button><button onClick={onToggleCollisionDebug}>{debugCollision ? "Tắt collision debug" : "Bật collision debug"}</button><button onClick={onRunTests}>Chạy self tests</button><button onClick={onResetExploration}>Xóa hành trình</button></div>
             {developer.tests.length > 0 && <p className="testResult">Tests: {developer.tests.join(", ")}</p>}
           </div>}
